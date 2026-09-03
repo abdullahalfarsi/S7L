@@ -755,15 +755,40 @@ async function loadProfile(userId){
   const { data, error } = await sb.from('profiles').select('*').eq('id',userId).single();
   if(!error) DB.profile = data;
 }
+async function ensureProfile(user, name){
+  const { data: existing } = await sb.from('profiles').select('id').eq('id', user.id).maybeSingle();
+  if(existing) return;
+  await sb.from('profiles').insert({
+    id: user.id,
+    name: name || (user.email ? user.email.split('@')[0] : 'مستخدم'),
+    email: user.email
+  });
+}
+function getPendingRef(){ try{ return localStorage.getItem('lxs7l_pending_ref'); }catch(e){ return null; } }
+function setPendingRef(code){ try{ localStorage.setItem('lxs7l_pending_ref', code); }catch(e){} }
+function clearPendingRef(){ try{ localStorage.removeItem('lxs7l_pending_ref'); }catch(e){} }
+
 async function signUp(name,email,password,refCode){
-  const { data, error } = await sb.auth.signUp({ email, password, options:{ data:{ name, ref: refCode||undefined } } });
+  const { data, error } = await sb.auth.signUp({ email, password });
   if(error) return {ok:false, error: translateAuthError(error), raw: error.message};
-  if(data.session){ await loadProfile(data.user.id); return {ok:true}; }
+  if(!data.user) return {ok:false, error:'تعذّر إنشاء الحساب'};
+
+  if(data.session){
+    await ensureProfile(data.user, name);
+    if(refCode) await sb.rpc('apply_referral', {p_ref_code: refCode});
+    await loadProfile(data.user.id);
+    return {ok:true};
+  }
+  // البريد يحتاج تأكيد؛ سيُنشأ الملف الشخصي تلقائياً عند أول تسجيل دخول
+  if(refCode) setPendingRef(refCode);
   return {ok:true, needsConfirm:true};
 }
 async function signIn(email,password){
   const { data, error } = await sb.auth.signInWithPassword({ email, password });
   if(error) return {ok:false, error: translateAuthError(error), raw: error.message};
+  await ensureProfile(data.user);
+  const pendingRef = getPendingRef();
+  if(pendingRef){ await sb.rpc('apply_referral', {p_ref_code: pendingRef}); clearPendingRef(); }
   await loadProfile(data.user.id);
   return {ok:true};
 }
