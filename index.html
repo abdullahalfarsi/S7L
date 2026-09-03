@@ -7,7 +7,32 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  window.__supabaseLibReady = (function(){
+    function loadScript(src){
+      return new Promise(function(resolve, reject){
+        var s = document.createElement('script');
+        s.src = src;
+        s.onload = function(){ resolve(src); };
+        s.onerror = function(){ reject(new Error('failed: '+src)); };
+        document.head.appendChild(s);
+      });
+    }
+    var sources = [
+      'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
+      'https://unpkg.com/@supabase/supabase-js@2'
+    ];
+    return (async function(){
+      for (var i=0; i<sources.length; i++){
+        try{
+          await loadScript(sources[i]);
+          if (window.supabase) return true;
+        }catch(e){ /* try next source */ }
+      }
+      return false;
+    })();
+  })();
+</script>
 <style>
 
   :root{
@@ -669,8 +694,11 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 const CONFIGURED = !SUPABASE_URL.includes('YOUR-PROJECT') && !SUPABASE_ANON_KEY.includes('YOUR-ANON-PUBLIC-KEY');
 let sb = null;
-if(CONFIGURED && window.supabase){
-  sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+function initSupabaseClient(){
+  if(CONFIGURED && window.supabase && !sb){
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }
+  return sb;
 }
 
 /* ---------- local-only UI state (سلة المشتريات وقائمة المقارنة فقط، غير حسّاسة) ---------- */
@@ -2232,8 +2260,10 @@ function libraryFailedScreen(){
   <section style="padding-top:150px; min-height:80vh; max-width:640px; margin:0 auto; text-align:center;">
     <h2 style="color:#fff; font-family:'Rajdhani',sans-serif;">⚠️ تعذّر تحميل مكتبة الاتصال</h2>
     <p class="hint" style="margin-top:14px; line-height:2;">
-      لم تُحمَّل مكتبة Supabase JS (قد يكون بسبب الإنترنت أو مانع إعلانات يحجب سكربتات CDN). جرّب تحديث الصفحة، أو تحقق من اتصالك بالإنترنت.
+      لم تُحمَّل مكتبة Supabase JS من أي من المصادر المتاحة. غالباً السبب حجب شبكتك أو مزوّد الإنترنت لبعض روابط CDN،
+      أو إضافة حظر إعلانات نشطة. جرّب تعطيل أي مانع إعلانات لهذه الصفحة، أو استخدم شبكة/جهاز آخر، ثم أعد المحاولة.
     </p>
+    <button class="btn-primary" style="margin-top:20px;" onclick="location.reload()">إعادة المحاولة</button>
   </section>`;
 }
 
@@ -2348,6 +2378,10 @@ async function render(){
 window.addEventListener('hashchange', render);
 window.addEventListener('DOMContentLoaded', async () => {
   try{
+    if(CONFIGURED){
+      await window.__supabaseLibReady;
+      initSupabaseClient();
+    }
     if(CONFIGURED && sb){
       await initAuth();
       await bootstrapPublicData();
