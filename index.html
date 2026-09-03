@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 
   :root{
@@ -712,7 +712,7 @@ function translateAuthError(error){
 
 /* ---------- المصادقة ---------- */
 async function initAuth(){
-  if(!CONFIGURED) return;
+  if(!CONFIGURED || !sb) return;
   const { data:{ session } } = await sb.auth.getSession();
   if(session) await loadProfile(session.user.id);
   sb.auth.onAuthStateChange((event)=>{ if(event==='SIGNED_OUT'){ DB.profile=null; } });
@@ -2227,6 +2227,15 @@ function notConfiguredScreen(){
     </p>
   </section>`;
 }
+function libraryFailedScreen(){
+  return `
+  <section style="padding-top:150px; min-height:80vh; max-width:640px; margin:0 auto; text-align:center;">
+    <h2 style="color:#fff; font-family:'Rajdhani',sans-serif;">⚠️ تعذّر تحميل مكتبة الاتصال</h2>
+    <p class="hint" style="margin-top:14px; line-height:2;">
+      لم تُحمَّل مكتبة Supabase JS (قد يكون بسبب الإنترنت أو مانع إعلانات يحجب سكربتات CDN). جرّب تحديث الصفحة، أو تحقق من اتصالك بالإنترنت.
+    </p>
+  </section>`;
+}
 
 function maintenanceScreen(){
   return `
@@ -2251,6 +2260,12 @@ async function render(){
     document.getElementById('header-slot').style.display='none';
     document.getElementById('footer-slot').style.display='none';
     app.innerHTML = notConfiguredScreen();
+    return;
+  }
+  if(!sb){
+    document.getElementById('header-slot').style.display='none';
+    document.getElementById('footer-slot').style.display='none';
+    app.innerHTML = libraryFailedScreen();
     return;
   }
 
@@ -2332,12 +2347,22 @@ async function render(){
 
 window.addEventListener('hashchange', render);
 window.addEventListener('DOMContentLoaded', async () => {
-  if(CONFIGURED){
-    await initAuth();
-    await bootstrapPublicData();
+  try{
+    if(CONFIGURED && sb){
+      await initAuth();
+      await bootstrapPublicData();
+    }
+    await render();
+  } catch(err){
+    console.error('Bootstrap error:', err);
+    document.getElementById('app').innerHTML = `
+      <section style="padding-top:180px; text-align:center; min-height:60vh;">
+        <h2 style="color:#fff;">تعذّر الاتصال بـ Supabase</h2>
+        <p class="hint" style="margin-top:14px;">تأكد أن رابط ومفتاح Supabase صحيحان، وأنك شغّلت ملف supabase-schema.sql كاملاً.</p>
+      </section>`;
+  } finally {
+    setTimeout(()=> document.getElementById('loader').classList.add('hide'), 400);
   }
-  await render();
-  setTimeout(()=> document.getElementById('loader').classList.add('hide'), 400);
 });
 
 /* ---------- الشريط الترويجي المتحرك ---------- */
