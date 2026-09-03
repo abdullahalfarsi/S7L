@@ -696,7 +696,12 @@ const CONFIGURED = !SUPABASE_URL.includes('YOUR-PROJECT') && !SUPABASE_ANON_KEY.
 let sb = null;
 function initSupabaseClient(){
   if(CONFIGURED && window.supabase && !sb){
-    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    try{
+      sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    }catch(e){
+      console.error('Supabase createClient error:', e);
+      window.__supabaseInitError = e.message || String(e);
+    }
   }
   return sb;
 }
@@ -741,7 +746,8 @@ function translateAuthError(error){
 /* ---------- المصادقة ---------- */
 async function initAuth(){
   if(!CONFIGURED || !sb) return;
-  const { data:{ session } } = await sb.auth.getSession();
+  const res = await sb.auth.getSession();
+  const session = res && res.data ? res.data.session : null;
   if(session) await loadProfile(session.user.id);
   sb.auth.onAuthStateChange((event)=>{ if(event==='SIGNED_OUT'){ DB.profile=null; } });
 }
@@ -751,13 +757,13 @@ async function loadProfile(userId){
 }
 async function signUp(name,email,password,refCode){
   const { data, error } = await sb.auth.signUp({ email, password, options:{ data:{ name, ref: refCode||undefined } } });
-  if(error) return {ok:false, error: translateAuthError(error)};
+  if(error) return {ok:false, error: translateAuthError(error), raw: error.message};
   if(data.session){ await loadProfile(data.user.id); return {ok:true}; }
   return {ok:true, needsConfirm:true};
 }
 async function signIn(email,password){
   const { data, error } = await sb.auth.signInWithPassword({ email, password });
-  if(error) return {ok:false, error: translateAuthError(error)};
+  if(error) return {ok:false, error: translateAuthError(error), raw: error.message};
   await loadProfile(data.user.id);
   return {ok:true};
 }
@@ -1410,7 +1416,7 @@ async function handleLogin(next){
   const pass = document.getElementById('li-pass').value;
   const res = await signIn(email,pass);
   btn.disabled=false;
-  if(!res.ok){ toast(res.error, false); return; }
+  if(!res.ok){ toast(res.error + (res.raw? ' — '+res.raw : ''), false); return; }
   toast('تم تسجيل الدخول ✓');
   go(next? '#'+next : '#/account');
 }
@@ -1439,7 +1445,7 @@ async function handleRegister(){
   if(!name||!email||!pass){ toast('الرجاء تعبئة جميع الحقول', false); btn.disabled=false; return; }
   const res = await signUp(name,email,pass,ref);
   btn.disabled=false;
-  if(!res.ok){ toast(res.error, false); return; }
+  if(!res.ok){ toast(res.error + (res.raw? ' — '+res.raw : ''), false); return; }
   if(res.needsConfirm){ toast('راجع بريدك الإلكتروني لتأكيد الحساب ✓'); go('#/login'); return; }
   toast('تم إنشاء الحساب ✓');
   go('#/account');
@@ -1687,7 +1693,7 @@ async function handleAdminLogin(){
   const pass = document.getElementById('ad-pass').value;
   const res = await signIn(email,pass);
   btn.disabled=false;
-  if(!res.ok){ toast(res.error, false); return; }
+  if(!res.ok){ toast(res.error + (res.raw? ' — '+res.raw : ''), false); return; }
   if(!isAdmin()){ toast('هذا الحساب لا يملك صلاحية إدارية', false); await signOutUser(); return; }
   toast('مرحباً بعودتك ✓');
   go('#/admin');
@@ -2389,10 +2395,12 @@ window.addEventListener('DOMContentLoaded', async () => {
     await render();
   } catch(err){
     console.error('Bootstrap error:', err);
+    const detail = (window.__supabaseInitError || (err && err.message) || '').toString();
     document.getElementById('app').innerHTML = `
       <section style="padding-top:180px; text-align:center; min-height:60vh;">
         <h2 style="color:#fff;">تعذّر الاتصال بـ Supabase</h2>
         <p class="hint" style="margin-top:14px;">تأكد أن رابط ومفتاح Supabase صحيحان، وأنك شغّلت ملف supabase-schema.sql كاملاً.</p>
+        ${detail? `<p class="hint en" style="margin-top:10px; color:var(--ember); direction:ltr;">${detail}</p>` : ''}
       </section>`;
   } finally {
     setTimeout(()=> document.getElementById('loader').classList.add('hide'), 400);
