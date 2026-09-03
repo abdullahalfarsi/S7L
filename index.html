@@ -600,6 +600,20 @@
 .upload-drop{border:1px dashed var(--line); padding:16px; text-align:center; color:var(--silver-dim); font-size:.8rem; cursor:pointer;}
 .upload-drop:hover{border-color:var(--ember); color:#fff;}
 
+/* ---------- زر الرجوع العام (ثابت في كل الصفحات) ---------- */
+#global-back-btn{
+  position:fixed; top:16px; inset-inline-start:16px; z-index:150;
+  width:38px; height:38px; border-radius:50%;
+  background:rgba(11,11,11,.7); backdrop-filter:blur(8px);
+  border:1px solid var(--line); color:#fff; font-size:1.1rem;
+  display:flex; align-items:center; justify-content:center;
+  transition:border-color .2s ease, background .2s ease;
+}
+#global-back-btn:hover{ border-color:var(--ember); background:rgba(229,9,20,.15); }
+@media (max-width:980px){
+  #global-back-btn{ top:10px; width:34px; height:34px; font-size:1rem; }
+}
+
 /* ================= ADMIN ================= */
 body.admin-mode{background:var(--void);}
 .admin-wrap{display:grid; grid-template-columns:250px 1fr; min-height:100vh;}
@@ -674,6 +688,7 @@ body.admin-mode{background:var(--void);}
 <div id="cursor-glow"></div>
 <div id="toast-holder"></div>
 <div id="modal-root"></div>
+<button id="global-back-btn" onclick="handleGlobalBack()" aria-label="رجوع">→</button>
 
 <div id="header-slot"></div>
 <main id="app"></main>
@@ -2306,7 +2321,6 @@ function maintenanceScreen(){
     </div>
     <h1 style="font-family:'Rajdhani',sans-serif; font-weight:700; font-size:clamp(1.6rem,4vw,2.4rem); color:#fff; letter-spacing:.05em;">الموقع قيد التحديث</h1>
     <p style="color:var(--silver-dim); margin-top:14px; max-width:420px;">نعمل حالياً على تحسين تجربتك في Lx S7L. سنعود خلال وقت قصير.</p>
-    <a href="#/admin/login" style="margin-top:40px; color:var(--silver-dim); font-size:.75rem; border:1px solid var(--line); padding:8px 16px;">دخول الإدارة</a>
   </div>`;
 }
 
@@ -2432,6 +2446,14 @@ window.addEventListener('DOMContentLoaded', async () => {
     setTimeout(()=> document.getElementById('loader').classList.add('hide'), 400);
   }
 });
+
+/* ---------- زر الرجوع العام ---------- */
+function handleGlobalBack(){
+  const {path} = parseHash();
+  if(path==='/' && !location.hash.startsWith('#/admin')){ return; }
+  if(window.history.length>1){ window.history.back(); }
+  else { location.hash = path.startsWith('/admin') ? '#/admin' : '#/'; }
+}
 
 /* ---------- الشريط الترويجي المتحرك ---------- */
 (function initBannerRotation(){
