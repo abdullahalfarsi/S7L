@@ -428,6 +428,13 @@
 .store-search button{background:var(--panel-2); border:1px solid var(--line); color:#fff; padding:0 16px; font-size:.85rem;}
 .select-inline{background:var(--panel); border:1px solid var(--line); color:#fff; padding:9px 12px; font-size:.82rem;}
 
+/* store category sections */
+.store-sections{max-width:1200px; margin:0 auto; display:flex; flex-direction:column; gap:44px;}
+.store-section{}
+.store-section-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; padding-bottom:12px; border-bottom:1px solid var(--line);}
+.store-section-head h3{color:#fff; font-family:'Rajdhani',sans-serif; font-size:1.2rem; display:flex; align-items:center; gap:10px;}
+.store-section-head h3 .ic{font-size:1.3rem;}
+
 /* product detail */
 .product-detail{max-width:1100px; margin:0 auto; display:grid; grid-template-columns:.9fr 1.1fr; gap:50px; align-items:start;}
 .pd-media{
@@ -1176,14 +1183,10 @@ async function pageHome(){
 async function pageStore(params){
   const activeCat = params.get('cat')||'';
   const q = (params.get('q')||'').trim();
-  let list = DB.products.filter(p=>p.status==='active');
-  if(activeCat) list = list.filter(p=>p.category_id===activeCat);
-  if(q) list = list.filter(p=>p.name.toLowerCase().includes(q.toLowerCase()) || (p.description||'').includes(q));
   const wishlist = isLoggedIn()? await myWishlistAsync() : [];
   const wishedSet = new Set(wishlist.map(p=>p.id));
-  return `
-  <section style="padding-top:150px;">
-    <div class="section-head"><h2>المتجر <em>الكامل</em></h2><p>تصفّح جميع منتجات Lx S7L الرقمية.</p></div>
+
+  const toolbar = `
     <div class="store-toolbar">
       <div class="chip-row">
         <a href="#/store" class="chip ${activeCat===''?'active':''}">الكل</a>
@@ -1193,9 +1196,50 @@ async function pageStore(params){
         <input id="store-q" type="text" placeholder="ابحث عن منتج..." value="${q}">
         <button type="submit">بحث</button>
       </form>
-    </div>
-    <div class="prod-grid" style="margin-top:30px;">
-      ${list.length? list.map(p=>productCard(p,wishedSet)).join('') : `<p style="color:var(--silver-dim); grid-column:1/-1; text-align:center;">لا توجد منتجات مطابقة.</p>`}
+    </div>`;
+
+  // فلترة نشطة (تصنيف محدد أو بحث) → شبكة واحدة مفلترة
+  if(activeCat || q){
+    let list = DB.products.filter(p=>p.status==='active');
+    if(activeCat) list = list.filter(p=>p.category_id===activeCat);
+    if(q) list = list.filter(p=>p.name.toLowerCase().includes(q.toLowerCase()) || (p.description||'').includes(q));
+    return `
+    <section style="padding-top:150px;">
+      <div class="section-head"><h2>المتجر <em>الكامل</em></h2><p>تصفّح جميع منتجات Lx S7L الرقمية.</p></div>
+      ${toolbar}
+      <div class="prod-grid" style="margin-top:30px;">
+        ${list.length? list.map(p=>productCard(p,wishedSet)).join('') : `<p style="color:var(--silver-dim); grid-column:1/-1; text-align:center;">لا توجد منتجات مطابقة.</p>`}
+      </div>
+    </section>`;
+  }
+
+  // العرض الافتراضي: كل تصنيف قسم مستقل بمنتجاته
+  const sections = DB.categories.map(c=>{
+    const items = DB.products.filter(p=>p.status==='active' && p.category_id===c.id);
+    if(!items.length) return '';
+    return `
+    <div class="store-section">
+      <div class="store-section-head">
+        <h3><span class="ic">${c.icon}</span> ${c.name}</h3>
+        <a href="#/store?cat=${c.id}" class="view-btn">عرض الكل</a>
+      </div>
+      <div class="prod-grid">${items.map(p=>productCard(p,wishedSet)).join('')}</div>
+    </div>`;
+  }).join('');
+
+  const uncategorized = DB.products.filter(p=>p.status==='active' && !DB.categories.some(c=>c.id===p.category_id));
+  const uncatSection = uncategorized.length? `
+    <div class="store-section">
+      <div class="store-section-head"><h3>منتجات أخرى</h3></div>
+      <div class="prod-grid">${uncategorized.map(p=>productCard(p,wishedSet)).join('')}</div>
+    </div>` : '';
+
+  return `
+  <section style="padding-top:150px;">
+    <div class="section-head"><h2>المتجر <em>الكامل</em></h2><p>تصفّح جميع منتجات Lx S7L الرقمية.</p></div>
+    ${toolbar}
+    <div class="store-sections">
+      ${sections || uncatSection ? sections + uncatSection : `<p style="color:var(--silver-dim); text-align:center; margin-top:30px;">لا توجد منتجات بعد.</p>`}
     </div>
   </section>`;
 }
