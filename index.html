@@ -446,13 +446,23 @@
 .dur-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-top:12px;}
 .dur-opt{
   border:1px solid var(--line); background:var(--panel); padding:14px; text-align:right;
-  display:flex; flex-direction:column; gap:4px; transition:all .2s ease;
+  display:flex; flex-direction:column; gap:4px;
+  transition:transform .25s cubic-bezier(.34,1.56,.64,1), border-color .25s ease, background .25s ease, box-shadow .25s ease;
+  animation:durFadeIn .45s ease backwards;
+  transform-origin:center;
 }
+.dur-opt:nth-child(1){animation-delay:.03s;} .dur-opt:nth-child(2){animation-delay:.08s;}
+.dur-opt:nth-child(3){animation-delay:.13s;} .dur-opt:nth-child(4){animation-delay:.18s;}
+.dur-opt:nth-child(5){animation-delay:.23s;} .dur-opt:nth-child(6){animation-delay:.28s;}
+.dur-opt:nth-child(n+7){animation-delay:.32s;}
+@keyframes durFadeIn{ from{opacity:0; transform:translateY(14px) scale(.96);} to{opacity:1; transform:translateY(0) scale(1);} }
 .dur-opt span{color:var(--silver-dim); font-size:.85rem;}
 .dur-opt b{color:#fff; font-size:1rem;}
 .dur-opt small{color:var(--silver-dim); font-size:.7rem;}
-.dur-opt:hover{border-color:var(--ember);}
-.dur-opt.sel{border-color:var(--ember); background:rgba(229,9,20,.08); box-shadow:0 0 20px rgba(229,9,20,.15);}
+.dur-opt:hover:not(.sel):not(.oos){border-color:var(--ember); transform:translateY(-2px);}
+.dur-opt.sel{border-color:var(--ember); background:rgba(229,9,20,.1); box-shadow:0 0 24px rgba(229,9,20,.25); transform:scale(1.03);}
+.dur-opt.pop{animation:durPop .35s ease;}
+@keyframes durPop{ 0%{transform:scale(1.03);} 40%{transform:scale(1.09);} 100%{transform:scale(1.03);} }
 .pd-buy{display:flex; align-items:center; justify-content:space-between; margin-top:26px; border-top:1px solid var(--line); padding-top:22px; gap:16px; flex-wrap:wrap;}
 .info-fields-box{margin-top:20px; background:var(--panel); border:1px solid var(--line); padding:16px;}
 
@@ -747,8 +757,8 @@ const LOGO_SRC = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAA4QAAAJpCAYAAAD1
    عدّل السطرين التاليين ببيانات مشروعك في Supabase:
    Project Settings → API → Project URL / anon public key
 ================================================================ */
-const SUPABASE_URL = 'https://gckjxtwwexytpynclvbw.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdja2p4dHd3ZXh5dHB5bmNsdmJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0NTY0OTgsImV4cCI6MjEwNDAzMjQ5OH0.wdwUyi4OczAb3sJx5ygiDFkF-VEs3HVndIpSvoakxhU';
+const SUPABASE_URL = 'https://YOUR-PROJECT.supabase.co';
+const SUPABASE_ANON_KEY = 'YOUR-ANON-PUBLIC-KEY';
 
 const CONFIGURED = !SUPABASE_URL.includes('YOUR-PROJECT') && !SUPABASE_ANON_KEY.includes('YOUR-ANON-PUBLIC-KEY');
 let sb = null;
@@ -877,12 +887,13 @@ function getProduct(id){ return DB.products.find(p=>p.id===id); }
 function getCategory(id){ return DB.categories.find(c=>c.id===id); }
 function getDuration(prod,id){ return prod && prod.durations.find(d=>d.id===id); }
 function priceRange(prod){
-  const prices = (prod.durations||[]).filter(d=>d.price>0).map(d=>d.price);
+  const prices = (prod.durations||[]).map(d=>d.price);
   if(!prices.length) return 'غير متوفر';
   return `${money(Math.min(...prices))} ${DB.settings.currency}`;
 }
 function codeStatusLabel(s){ return {available:'متاح', sold:'مباع', redeemed:'مُفعّل', expired:'منتهي', disabled:'معطّل'}[s]||s; }
 function orderStatusLabel(s){ return {paid:'مدفوع', pending:'قيد الانتظار', failed:'فشل'}[s]||s; }
+function catLabel(c){ return c ? (c.icon? c.icon+' '+c.name : c.name) : ''; }
 
 /* ---------- المخزون / الإثبات الاجتماعي (عبر RPC آمنة) ---------- */
 async function availableCodesCountAsync(productId,durationId){
@@ -1148,7 +1159,7 @@ function categoryBannerSection(cat, products, wishedSet){
           <h2>${cat.name}</h2>
           <div class="cat-quicklinks">${products.slice(0,6).map(p=>`<a href="#/product/${p.id}" class="cat-quick-btn">${p.name}</a>`).join('')}</div>
         </div>
-        <div class="cat-banner-icon">${cat.icon}</div>
+        ${cat.icon? `<div class="cat-banner-icon">${cat.icon}</div>` : ''}
       </div>
     </div>
     <div class="cat-carousel-head">
@@ -1258,7 +1269,7 @@ async function pageStore(params){
     <div class="store-toolbar">
       <div class="chip-row">
         <a href="#/store" class="chip ${activeCat===''?'active':''}">الكل</a>
-        ${DB.categories.map(c=>`<a href="#/store?cat=${c.id}" class="chip ${activeCat===c.id?'active':''}">${c.icon} ${c.name}</a>`).join('')}
+        ${DB.categories.map(c=>`<a href="#/store?cat=${c.id}" class="chip ${activeCat===c.id?'active':''}">${catLabel(c)}</a>`).join('')}
       </div>
       <form onsubmit="event.preventDefault(); go('#/store?cat=${activeCat}&q='+encodeURIComponent(document.getElementById('store-q').value));" class="store-search">
         <input id="store-q" type="text" placeholder="ابحث عن منتج..." value="${q}">
@@ -1288,7 +1299,7 @@ async function pageStore(params){
     return `
     <div class="store-section">
       <div class="store-section-head">
-        <h3><span class="ic">${c.icon}</span> ${c.name}</h3>
+        <h3>${c.icon? `<span class="ic">${c.icon}</span> `:''}${c.name}</h3>
         <a href="#/store?cat=${c.id}" class="view-btn">عرض الكل</a>
       </div>
       <div class="prod-grid">${items.map(p=>productCard(p,wishedSet)).join('')}</div>
@@ -1316,7 +1327,7 @@ async function pageProduct(id){
   const p = getProduct(id);
   if(!p) return page404();
   const cat = getCategory(p.category_id);
-  const paidDurations = p.durations.filter(d=>d.price>0);
+  const paidDurations = p.durations;
   const isManual = p.fulfillment_type === 'manual';
 
   const [counts, reviews, canReview, wished, inCompareInit, boughtToday] = await Promise.all([
@@ -1349,7 +1360,7 @@ async function pageProduct(id){
       </div>
       <div class="pd-info">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
-          <span class="chip active" style="display:inline-block; margin-bottom:14px;">${cat?cat.icon+' '+cat.name:''}</span>
+          <span class="chip active" style="display:inline-block; margin-bottom:14px;">${catLabel(cat)}</span>
           <div style="display:flex; gap:8px;">
             <button class="icon-btn ${wished?'active-heart':''}" onclick="handleToggleWishlist('${p.id}')" title="أضف للمفضلة">${wished?'❤':'🤍'}</button>
             <button class="icon-btn ${inCompareInit?'active-heart':''}" onclick="handleToggleCompare('${p.id}')" title="أضف للمقارنة">⇄</button>
@@ -1410,8 +1421,10 @@ function setMainMedia(btn,type,src){
   } else { main.innerHTML = `<img src="${src}" style="width:100%; height:100%; object-fit:cover;">`; }
 }
 function selectDuration(btn){
-  document.querySelectorAll('.dur-opt').forEach(b=>b.classList.remove('sel'));
+  document.querySelectorAll('.dur-opt').forEach(b=>b.classList.remove('sel','pop'));
   btn.classList.add('sel');
+  requestAnimationFrame(()=> btn.classList.add('pop'));
+  btn.addEventListener('animationend', ()=> btn.classList.remove('pop'), {once:true});
   document.getElementById('pd-price').textContent = money(btn.dataset.price)+' '+DB.settings.currency;
   const avail = parseInt(btn.dataset.avail)||0;
   document.getElementById('pd-add-btn').style.display = avail>0? '' : 'none';
@@ -1748,10 +1761,10 @@ function pageCompare(){
   const items = DB.compare.map(getProduct).filter(Boolean);
   if(!items.length) return `<section style="padding-top:170px; min-height:60vh; text-align:center;"><p class="hint">لا توجد منتجات في المقارنة بعد.</p><a href="#/store" class="btn-primary" style="margin-top:16px; display:inline-block;">تصفح المتجر</a></section>`;
   const rows = [
-    ['التصنيف', p=>{const c=getCategory(p.category_id); return c?c.icon+' '+c.name:'—';}],
+    ['التصنيف', p=>catLabel(getCategory(p.category_id))||'—'],
     ['التقييم', p=>stars(p.rating)],
     ['أقل سعر', p=>priceRange(p)],
-    ['المدد المتاحة', p=>p.durations.filter(d=>d.price>0).map(d=>d.label).join('، ')],
+    ['الباقات المتاحة', p=>p.durations.map(d=>d.label).join('، ')],
     ['الوصف', p=>p.description||''],
   ];
   return `
@@ -1892,7 +1905,7 @@ async function pageAdminOverview(){
   const stockMap = {};
   (availCodes||[]).forEach(c=>{ const k=c.product_id+'|'+c.duration_key; stockMap[k]=(stockMap[k]||0)+1; });
   const lowStock = [];
-  DB.products.forEach(p=>p.durations.filter(d=>d.price>0).forEach(d=>{
+  DB.products.filter(p=>p.fulfillment_type!=='manual').forEach(p=>p.durations.forEach(d=>{
     const n = stockMap[p.id+'|'+d.id]||0;
     if(n<=5) lowStock.push({p,d,n});
   }));
@@ -1929,7 +1942,7 @@ async function pageAdminProducts(){
       <table class="admin-table"><thead><tr><th></th><th>الاسم</th><th>التصنيف</th><th>الباقات</th><th>التسليم</th><th>الحالة</th><th>مميز</th><th></th></tr></thead>
       <tbody>${DB.products.map(p=>{const cat=getCategory(p.category_id); return `<tr>
         <td>${p.images&&p.images.length? `<img src="${p.images[0]}" style="width:36px; height:36px; object-fit:cover;">` : `<span style="font-size:1.3rem;">${p.icon}</span>`}</td>
-        <td>${p.name}</td><td>${cat?cat.name:'—'}</td><td class="en">${p.durations.filter(d=>d.price>0).length}</td>
+        <td>${p.name}</td><td>${cat?cat.name:'—'}</td><td class="en">${p.durations.length}</td>
         <td><span class="status-badge ${p.fulfillment_type==='manual'?'pending':'paid'}">${p.fulfillment_type==='manual'?'يدوي':'تلقائي'}</span></td>
         <td><span class="status-badge ${p.status==='active'?'paid':'expired'}">${p.status==='active'?'نشط':'موقوف'}</span></td>
         <td>${p.featured?'✓':'—'}</td>
@@ -1952,7 +1965,7 @@ function openProductForm(id){
   const body = `
     <div class="form-row"><label>اسم المنتج</label><input id="pf-name" value="${p?p.name:''}"></div>
     <div class="form-row"><label>الوصف</label><textarea id="pf-desc" rows="3">${p?(p.description||''):''}</textarea></div>
-    <div class="form-row"><label>التصنيف</label><select id="pf-cat">${DB.categories.map(c=>`<option value="${c.id}" ${p&&p.category_id===c.id?'selected':''}>${c.icon} ${c.name}</option>`).join('')}</select></div>
+    <div class="form-row"><label>التصنيف</label><select id="pf-cat">${DB.categories.map(c=>`<option value="${c.id}" ${p&&p.category_id===c.id?'selected':''}>${catLabel(c)}</option>`).join('')}</select></div>
     <div class="form-row"><label>أيقونة (تُستخدم إذا لم تُضف صور)</label><input id="pf-icon" value="${p?p.icon:'🎮'}"></div>
     <div class="form-row">
       <label>صور المنتج (تُرفع مباشرة إلى Supabase Storage)</label>
@@ -2050,6 +2063,10 @@ async function submitProductForm(id){
   if(!name){ toast('اسم المنتج مطلوب', false); return; }
   const validTiers = PF_TIERS.filter(t=>t.label.trim());
   if(!validTiers.length){ toast('أضف باقة واحدة على الأقل', false); return; }
+  const zeroPriceTiers = validTiers.filter(t=>!t.price || t.price<=0);
+  if(zeroPriceTiers.length){
+    if(!confirm(`تنبيه: الباقات التالية بدون سعر (0):\n${zeroPriceTiers.map(t=>'- '+t.label).join('\n')}\n\nهل تريد المتابعة والحفظ كذلك؟`)) return;
+  }
   btn.disabled = true; btn.textContent = 'جارِ الحفظ...';
 
   const productData = {
@@ -2121,7 +2138,7 @@ function openCategoryForm(id){
   const c = id? getCategory(id) : null;
   window.CF_BANNER = c && c.banner_image ? c.banner_image : null;
   const body = `<div class="form-row"><label>اسم التصنيف</label><input id="cf-name" value="${c?c.name:''}"></div>
-    <div class="form-row"><label>أيقونة</label><input id="cf-icon" value="${c?c.icon:'🗂️'}"></div>
+    <div class="form-row"><label>أيقونة (اختياري)</label><input id="cf-icon" placeholder="مثال: 🎮" value="${c&&c.icon?c.icon:''}"></div>
     <div class="form-row">
       <label>خلفية بانر القسم بالصفحة الرئيسية (اختياري)</label>
       <div id="cf-banner-preview"></div>
@@ -2151,7 +2168,7 @@ async function handleCfBannerSelect(event){
 }
 async function submitCategoryForm(id){
   const name = document.getElementById('cf-name').value.trim();
-  const icon = document.getElementById('cf-icon').value.trim()||'🗂️';
+  const icon = document.getElementById('cf-icon').value.trim();
   if(!name){ toast('اسم التصنيف مطلوب', false); return; }
   const payload = {name, icon, banner_image: window.CF_BANNER||null};
   if(id){ await sb.from('categories').update(payload).eq('id',id); }
@@ -2206,7 +2223,7 @@ function openImportCodes(){
     <button class="btn-primary" style="width:100%;" id="ic-submit-btn" onclick="submitImportCodes()">إضافة الأكواد</button>`;
   openModal('إضافة أكواد يدوياً', body);
   const prodSel = document.getElementById('ic-prod');
-  const fillDur = ()=>{ const p=getProduct(prodSel.value); document.getElementById('ic-dur').innerHTML = p.durations.filter(d=>d.price>0).map(d=>`<option value="${d.id}">${d.label}</option>`).join(''); };
+  const fillDur = ()=>{ const p=getProduct(prodSel.value); document.getElementById('ic-dur').innerHTML = p.durations.map(d=>`<option value="${d.id}">${d.label}</option>`).join(''); };
   prodSel.addEventListener('change', fillDur); fillDur();
 }
 async function submitImportCodes(){
