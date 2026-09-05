@@ -454,6 +454,7 @@
 .dur-opt:hover{border-color:var(--ember);}
 .dur-opt.sel{border-color:var(--ember); background:rgba(229,9,20,.08); box-shadow:0 0 20px rgba(229,9,20,.15);}
 .pd-buy{display:flex; align-items:center; justify-content:space-between; margin-top:26px; border-top:1px solid var(--line); padding-top:22px; gap:16px; flex-wrap:wrap;}
+.info-fields-box{margin-top:20px; background:var(--panel); border:1px solid var(--line); padding:16px;}
 
 /* cart */
 .cart-wrap{max-width:1000px; margin:0 auto; display:grid; grid-template-columns:1.6fr 1fr; gap:24px; align-items:start;}
@@ -598,6 +599,41 @@
 .feed-row{max-width:900px; margin:0 auto; display:flex; flex-direction:column; gap:10px;}
 .feed-item{background:var(--panel); border:1px solid var(--line); padding:12px 16px; font-size:.85rem; color:var(--silver-dim); display:flex; gap:6px; align-items:center; flex-wrap:wrap;}
 .feed-item b{color:#fff;} .feed-item span{color:var(--ember);} .feed-item small{margin-inline-start:auto; color:var(--silver-dim);}
+
+/* ---------- category banner sections (homepage) ---------- */
+.cat-section{margin-bottom:56px;}
+.cat-banner{
+  position:relative; border:1px solid var(--ember); background:var(--panel);
+  padding:36px; overflow:hidden;
+  clip-path: polygon(28px 0, 100% 0, 100% calc(100% - 28px), calc(100% - 28px) 100%, 0 100%, 0 28px);
+  box-shadow:0 0 50px rgba(229,9,20,.14);
+}
+.cat-banner-inner{display:flex; align-items:center; justify-content:space-between; gap:30px; flex-wrap:wrap; position:relative; z-index:2;}
+.cat-banner-text h2{font-family:'Rajdhani',sans-serif; font-weight:700; font-size:clamp(1.5rem,4vw,2.2rem); color:#fff;}
+.cat-quicklinks{display:flex; gap:10px; flex-wrap:wrap; margin-top:16px;}
+.cat-quick-btn{border:1px solid var(--line); color:var(--silver-dim); padding:8px 16px; font-size:.78rem; background:rgba(5,5,5,.4); transition:all .2s ease;}
+.cat-quick-btn:hover{border-color:var(--ember); color:#fff;}
+.cat-banner-icon{font-size:4.2rem; filter:drop-shadow(0 0 24px rgba(229,9,20,.5)); flex-shrink:0;}
+.cat-carousel-head{display:flex; align-items:center; justify-content:space-between; margin:22px 0 14px;}
+.cat-carousel-head h3{color:#fff; font-family:'Rajdhani',sans-serif; font-size:1.05rem;}
+.cat-carousel-nav{display:flex; align-items:center; gap:10px;}
+.cat-carousel-nav button{width:34px; height:34px; border-radius:50%; border:1px solid var(--line); color:#fff; font-size:1.1rem; transition:border-color .2s ease;}
+.cat-carousel-nav button:hover{border-color:var(--ember);}
+.cat-carousel{display:flex; gap:16px; overflow-x:auto; scroll-behavior:smooth; padding-bottom:12px; scrollbar-width:thin;}
+.cat-carousel::-webkit-scrollbar{height:6px;}
+.cat-carousel::-webkit-scrollbar-thumb{background:var(--ember-dark);}
+.cat-carousel-item{flex:0 0 230px;}
+@media (max-width:560px){
+  .cat-banner{padding:24px;}
+  .cat-banner-icon{font-size:3rem;}
+  .cat-carousel-item{flex:0 0 190px;}
+}
+
+/* ---------- admin dynamic tier / field rows ---------- */
+.tier-row{display:grid; grid-template-columns:1.6fr 1fr auto; gap:8px; margin-bottom:8px; align-items:center;}
+.tier-row input{background:var(--void); border:1px solid var(--line); color:#fff; padding:9px 10px; font-size:.85rem;}
+.tier-row button{width:34px; height:34px; border:1px solid var(--line); color:var(--ember); flex-shrink:0;}
+.tier-row button:hover{border-color:var(--ember); background:rgba(229,9,20,.08);}
 
 /* ---------- admin image upload ---------- */
 .img-upload-grid{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;}
@@ -832,8 +868,7 @@ async function fetchProducts(){
     ...p,
     durations: (p.product_durations||[]).map(d=>({id:d.key, label:d.label, days:d.days, price:Number(d.price)}))
   }));
-}
-async function bootstrapPublicData(){
+}async function bootstrapPublicData(){
   await Promise.all([fetchCategories(), fetchProducts(), fetchSettings()]);
 }
 
@@ -865,9 +900,10 @@ async function recentRedemptionsAsync(limit){
 }
 
 /* ---------- السلة والمقارنة (محلي بالكامل، بلا حاجة لتسجيل الدخول) ---------- */
-function addToCart(productId,durationId,qty){
-  const existing = DB.cart.find(i=>i.productId===productId && i.durationId===durationId);
-  if(existing) existing.qty += qty; else DB.cart.push({productId,durationId,qty});
+function addToCart(productId,durationId,qty,notes){
+  const existing = DB.cart.find(i=>i.productId===productId && i.durationId===durationId && !notes);
+  if(existing && !notes){ existing.qty += qty; }
+  else { DB.cart.push({productId,durationId,qty,notes:notes||null}); }
   saveCartLocal();
 }
 function removeFromCart(productId,durationId){
@@ -892,7 +928,7 @@ function toggleCompare(productId){
 
 /* ---------- الدفع، الأكواد، النقاط، المفضلة، التقييمات (عبر Supabase) ---------- */
 async function checkoutCartAsync(couponCode, usePoints){
-  const items = DB.cart.map(i=>({product_id:i.productId, duration_id:i.durationId, qty:i.qty}));
+  const items = DB.cart.map(i=>({product_id:i.productId, duration_id:i.durationId, qty:i.qty, notes:i.notes||null}));
   const {data,error} = await sb.rpc('perform_checkout', {p_items:items, p_coupon:couponCode||null, p_use_points:!!usePoints});
   if(error) return {ok:false, error:'تعذّر إتمام الطلب، حاول مرة أخرى'};
   if(!data.ok) return {ok:false, error:data.error};
@@ -1099,13 +1135,52 @@ async function handleToggleCompare(pid){
 
 /* ================= الصفحات ================= */
 
+function categoryBannerSection(cat, products, wishedSet){
+  const bgStyle = cat.banner_image
+    ? `background-image:linear-gradient(180deg, rgba(5,5,5,.5), rgba(5,5,5,.88)), url('${cat.banner_image}'); background-size:cover; background-position:center;`
+    : '';
+  const carId = 'car-'+cat.id;
+  return `
+  <div class="cat-section">
+    <div class="cat-banner" style="${bgStyle}">
+      <div class="cat-banner-inner">
+        <div class="cat-banner-text">
+          <h2>${cat.name}</h2>
+          <div class="cat-quicklinks">${products.slice(0,6).map(p=>`<a href="#/product/${p.id}" class="cat-quick-btn">${p.name}</a>`).join('')}</div>
+        </div>
+        <div class="cat-banner-icon">${cat.icon}</div>
+      </div>
+    </div>
+    <div class="cat-carousel-head">
+      <h3>${cat.name}</h3>
+      <div class="cat-carousel-nav">
+        <button onclick="scrollCarousel('${carId}',1)" aria-label="السابق">‹</button>
+        <button onclick="scrollCarousel('${carId}',-1)" aria-label="التالي">›</button>
+        <a href="#/store?cat=${cat.id}" class="view-btn">عرض الكل</a>
+      </div>
+    </div>
+    <div class="cat-carousel" id="${carId}">
+      ${products.map(p=>`<div class="cat-carousel-item">${productCard(p,wishedSet)}</div>`).join('')}
+    </div>
+  </div>`;
+}
+function scrollCarousel(id, dir){
+  const el = document.getElementById(id); if(!el) return;
+  el.scrollBy({left: dir*280, behavior:'smooth'});
+}
+
 async function pageHome(){
-  const featured = DB.products.filter(p=>p.featured && p.status==='active').slice(0,4);
   const [wishlist, recent] = await Promise.all([
     isLoggedIn()? myWishlistAsync() : Promise.resolve([]),
     recentRedemptionsAsync(5)
   ]);
   const wishedSet = new Set(wishlist.map(p=>p.id));
+  const catSections = DB.categories.map(c=>{
+    const items = DB.products.filter(p=>p.status==='active' && p.category_id===c.id);
+    if(!items.length) return '';
+    return categoryBannerSection(c, items, wishedSet);
+  }).join('');
+
   return `
   <section id="hero">
     <div class="embers" id="ember-field"></div>
@@ -1130,15 +1205,8 @@ async function pageHome(){
     </div>
   </section>
 
-  <section id="categories">
-    <div class="section-head"><h2>تصفح حسب <em>التصنيف</em></h2><p>كل ما تحتاجه من منتجات رقمية، مرتب في مكان واحد.</p></div>
-    <div class="cat-row">${DB.categories.map(c=>`<a href="#/store?cat=${c.id}" class="cat-tile"><div class="ic">${c.icon}</div><span>${c.name}</span></a>`).join('')}</div>
-  </section>
-
-  <section id="products">
-    <div class="section-head"><h2>المنتجات <em>المميزة</em></h2><p>أكواد أصلية، تسليم تلقائي فور تأكيد الدفع.</p></div>
-    <div class="prod-grid">${featured.map(p=>productCard(p,wishedSet)).join('')}</div>
-    <div style="text-align:center; margin-top:36px;"><a href="#/store" class="btn-outline">عرض كل المنتجات</a></div>
+  <section id="catalog">
+    ${catSections || `<p style="text-align:center; color:var(--silver-dim);">لا توجد منتجات بعد.</p>`}
   </section>
 
   <section id="flash" style="padding-top:0;">
@@ -1149,12 +1217,12 @@ async function pageHome(){
   </section>
 
   <section id="how">
-    <div class="section-head"><h2>كيف <em>تحصل</em> على كودك</h2><p>أربع خطوات فقط تفصلك عن التسليم الفوري.</p></div>
+    <div class="section-head"><h2>كيف <em>تحصل</em> على طلبك</h2><p>خطوات بسيطة تفصلك عن التسليم.</p></div>
     <div class="flow">
-      <div class="flow-step"><div class="num en">1</div><h4>اختر المنتج</h4><p>تصفح المتجر واختر ما يناسبك من التصنيفات.</p></div>
-      <div class="flow-step"><div class="num en">2</div><h4>اختر المدة</h4><p>يوم، أسبوع، شهر، أو مدى الحياة — حسب حاجتك.</p></div>
-      <div class="flow-step"><div class="num en">3</div><h4>أكمل الدفع</h4><p>الدفع آمن، والكود لا يُسلّم إلا بعد تأكيد العملية.</p></div>
-      <div class="flow-step"><div class="num en">4</div><h4>استلم الكود</h4><p>يظهر الكود فوراً ويُحفظ في حسابك مع نسخة بالبريد.</p></div>
+      <div class="flow-step"><div class="num en">1</div><h4>اختر المنتج</h4><p>تصفح المتجر واختر ما يناسبك من الأقسام.</p></div>
+      <div class="flow-step"><div class="num en">2</div><h4>اختر الباقة</h4><p>كل منتج له باقات وأسعار مختلفة حسب حاجتك.</p></div>
+      <div class="flow-step"><div class="num en">3</div><h4>أكمل الدفع</h4><p>الدفع آمن، ولا يُسلَّم الطلب إلا بعد تأكيد العملية.</p></div>
+      <div class="flow-step"><div class="num en">4</div><h4>استلم طلبك</h4><p>كود فوري للمنتجات التلقائية، أو تنفيذ سريع للخدمات اليدوية.</p></div>
     </div>
   </section>
 
@@ -1249,9 +1317,10 @@ async function pageProduct(id){
   if(!p) return page404();
   const cat = getCategory(p.category_id);
   const paidDurations = p.durations.filter(d=>d.price>0);
+  const isManual = p.fulfillment_type === 'manual';
 
   const [counts, reviews, canReview, wished, inCompareInit, boughtToday] = await Promise.all([
-    Promise.all(paidDurations.map(d=>availableCodesCountAsync(p.id,d.id))),
+    isManual ? Promise.resolve(paidDurations.map(()=>999)) : Promise.all(paidDurations.map(d=>availableCodesCountAsync(p.id,d.id))),
     getProductReviewsAsync(p.id),
     customerCanReviewAsync(p.id),
     isLoggedIn()? isWishlistedAsync(p.id) : Promise.resolve(false),
@@ -1263,6 +1332,7 @@ async function pageProduct(id){
   const related = DB.products.filter(x=>x.category_id===p.category_id && x.id!==p.id && x.status==='active').slice(0,4);
   const gallery = p.images||[]; const hasVideo = !!p.video;
   const firstDur = paidDurations[0];
+  const infoFields = p.info_fields||[];
 
   return `
   <section style="padding-top:150px;">
@@ -1275,7 +1345,7 @@ async function pageProduct(id){
           ${gallery.map((src,i)=>`<button class="pd-thumb ${i===0?'sel':''}" onclick="setMainMedia(this,'img','${src}')"><img src="${src}"></button>`).join('')}
           ${hasVideo? `<button class="pd-thumb video-thumb" onclick="setMainMedia(this,'video','${p.video}')">🎬</button>`:''}
         </div>` : ''}
-        <div class="trust-row"><span>🔒 دفع آمن</span><span>⚡ تسليم فوري</span><span>↩️ استرجاع خلال 24 ساعة</span><span>🎧 دعم 24/7</span></div>
+        <div class="trust-row"><span>🔒 دفع آمن</span><span>⚡ ${isManual?'تنفيذ سريع':'تسليم فوري'}</span><span>↩️ استرجاع خلال 24 ساعة</span><span>🎧 دعم 24/7</span></div>
       </div>
       <div class="pd-info">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
@@ -1290,19 +1360,25 @@ async function pageProduct(id){
         <p class="pd-desc">${p.description||''}</p>
         <p class="social-proof">🔥 اشتراه <b class="en">${boughtToday}</b> شخص اليوم</p>
 
-        <h4 style="margin-top:22px; color:#fff; font-size:.95rem;">اختر المدة</h4>
+        <h4 style="margin-top:22px; color:#fff; font-size:.95rem;">اختر الباقة</h4>
         <div class="dur-grid" id="dur-grid">
           ${paidDurations.map((d,i)=>`
             <button class="dur-opt ${i===0?'sel':''} ${avail[d.id]<=0?'oos':''}" data-id="${d.id}" data-price="${d.price}" data-avail="${avail[d.id]}" onclick="selectDuration(this)" ${avail[d.id]<=0?'disabled':''}>
               <span>${d.label}</span><b class="en">${money(d.price)} ${DB.settings.currency}</b>
-              <small>${avail[d.id]>5?'متوفر':(avail[d.id]>0?'كمية محدودة':'نفد المخزون')}</small>
+              ${isManual? '' : `<small>${avail[d.id]>5?'متوفر':(avail[d.id]>0?'كمية محدودة':'نفد المخزون')}</small>`}
             </button>`).join('')}
         </div>
+
+        ${isManual && infoFields.length? `
+        <div class="info-fields-box">
+          <h4 style="color:#fff; font-size:.9rem; margin-bottom:12px;">معلومات التنفيذ</h4>
+          ${infoFields.map((f,i)=>`<div class="form-row"><label>${f.label}</label><input id="pf-info-${i}" class="en" placeholder="${f.placeholder||''}"></div>`).join('')}
+        </div>` : ''}
 
         <div class="pd-buy">
           <div class="price en" id="pd-price" style="font-size:1.6rem;">${firstDur?money(firstDur.price)+' '+DB.settings.currency:'—'}</div>
           <button class="btn-primary" id="pd-add-btn" onclick="handleAddToCart('${p.id}')" ${firstDur&&avail[firstDur.id]<=0?'style="display:none;"':''}>أضف إلى السلة</button>
-          <button class="btn-outline" id="pd-alert-btn" onclick="handleStockAlert('${p.id}')" style="${firstDur&&avail[firstDur.id]<=0?'':'display:none;'}">نبّهني عند التوفر</button>
+          ${!isManual? `<button class="btn-outline" id="pd-alert-btn" onclick="handleStockAlert('${p.id}')" style="${firstDur&&avail[firstDur.id]<=0?'':'display:none;'}">نبّهني عند التوفر</button>` : ''}
         </div>
       </div>
     </div>
@@ -1339,13 +1415,26 @@ function selectDuration(btn){
   document.getElementById('pd-price').textContent = money(btn.dataset.price)+' '+DB.settings.currency;
   const avail = parseInt(btn.dataset.avail)||0;
   document.getElementById('pd-add-btn').style.display = avail>0? '' : 'none';
-  document.getElementById('pd-alert-btn').style.display = avail>0? 'none' : '';
+  const alertBtn = document.getElementById('pd-alert-btn');
+  if(alertBtn) alertBtn.style.display = avail>0? 'none' : '';
 }
 function handleAddToCart(prodId){
+  const p = getProduct(prodId);
   const sel = document.querySelector('.dur-opt.sel');
-  if(!sel){ toast('اختر المدة أولاً', false); return; }
-  if((parseInt(sel.dataset.avail)||0)<=0){ toast('نفد المخزون لهذه المدة', false); return; }
-  addToCart(prodId, sel.dataset.id, 1);
+  if(!sel){ toast('اختر الباقة أولاً', false); return; }
+  let notes = null;
+  if(p.fulfillment_type==='manual'){
+    const fields = p.info_fields||[];
+    notes = {};
+    for(let i=0;i<fields.length;i++){
+      const val = document.getElementById('pf-info-'+i).value.trim();
+      if(!val){ toast('الرجاء تعبئة: '+fields[i].label, false); return; }
+      notes[fields[i].key] = val;
+    }
+  } else {
+    if((parseInt(sel.dataset.avail)||0)<=0){ toast('نفد المخزون لهذه الباقة', false); return; }
+  }
+  addToCart(prodId, sel.dataset.id, 1, notes);
   toast('تمت الإضافة إلى السلة ✓');
   render();
 }
@@ -1456,7 +1545,8 @@ async function pageOrder(id){
   const order = await getOrderAsync(id);
   if(!order) return page404();
   const p = getProduct(order.product_id); const d = getDuration(p,order.duration_key);
-  const codeRec = await getCodeByIdAsync(order.code_id);
+  const isManual = p && p.fulfillment_type==='manual';
+  const codeRec = isManual? null : await getCodeByIdAsync(order.code_id);
   return `
   <section style="padding-top:150px; min-height:60vh;">
     <div class="success-box glass-panel">
@@ -1464,13 +1554,21 @@ async function pageOrder(id){
       <h2 style="margin-top:10px;">تم الدفع بنجاح</h2>
       <div class="sum-row"><span>رقم الطلب</span><span class="en">#${order.id.slice(0,8)}</span></div>
       <div class="sum-row"><span>المنتج</span><span>${p?p.name:'—'}</span></div>
-      <div class="sum-row"><span>المدة</span><span>${d?d.label:'—'}</span></div>
+      <div class="sum-row"><span>الباقة</span><span>${d?d.label:'—'}</span></div>
       <div class="sum-row"><span>المبلغ</span><span class="en">${money(order.amount)} ${DB.settings.currency}</span></div>
-      ${codeRec? `<div class="code-reveal"><span>كودك</span><div class="code-value en">${codeRec.code}</div>
-        <button class="btn-outline" onclick="navigator.clipboard.writeText('${codeRec.code}'); toast('تم نسخ الكود ✓')">نسخ الكود</button></div>` : ''}
-      <p class="hint" style="margin-top:16px;">تم حفظ الكود في حسابك، ويمكنك تفعيله في أي وقت من صفحة "تفعيل الكود".</p>
+      ${isManual? `
+        <div class="code-reveal">
+          <span>حالة الطلب</span>
+          <div class="code-value" style="font-size:1.1rem;">قيد التنفيذ</div>
+        </div>
+        <p class="hint" style="margin-top:16px;">استلمنا طلبك وسيقوم فريقنا بتنفيذه يدوياً خلال وقت قصير. تقدر تتابع حالته من "طلباتي".</p>
+      ` : codeRec? `
+        <div class="code-reveal"><span>كودك</span><div class="code-value en">${codeRec.code}</div>
+        <button class="btn-outline" onclick="navigator.clipboard.writeText('${codeRec.code}'); toast('تم نسخ الكود ✓')">نسخ الكود</button></div>
+        <p class="hint" style="margin-top:16px;">تم حفظ الكود في حسابك، ويمكنك تفعيله في أي وقت من صفحة "تفعيل الكود".</p>
+      ` : ''}
       <div style="display:flex; gap:14px; margin-top:20px; flex-wrap:wrap;">
-        <a href="#/account?tab=codes" class="btn-primary">اذهب إلى أكوادي</a>
+        <a href="#/account?tab=${isManual?'orders':'codes'}" class="btn-primary">${isManual?'طلباتي':'اذهب إلى أكوادي'}</a>
         <a href="#/store" class="btn-outline">متابعة التسوق</a>
       </div>
     </div>
@@ -1824,14 +1922,15 @@ async function pageAdminOverview(){
 async function pageAdminProducts(){
   return adminShell('products', `
     <div class="admin-head admin-head-actions">
-      <div><h2>المنتجات</h2><p>إدارة منتجات المتجر ومددها وأسعارها.</p></div>
+      <div><h2>المنتجات</h2><p>إدارة منتجات المتجر وباقاتها وأسعارها.</p></div>
       <button class="btn-primary" onclick="openProductForm()">+ إضافة منتج</button>
     </div>
     <div class="admin-panel">
-      <table class="admin-table"><thead><tr><th></th><th>الاسم</th><th>التصنيف</th><th>المدد</th><th>الحالة</th><th>مميز</th><th></th></tr></thead>
+      <table class="admin-table"><thead><tr><th></th><th>الاسم</th><th>التصنيف</th><th>الباقات</th><th>التسليم</th><th>الحالة</th><th>مميز</th><th></th></tr></thead>
       <tbody>${DB.products.map(p=>{const cat=getCategory(p.category_id); return `<tr>
         <td>${p.images&&p.images.length? `<img src="${p.images[0]}" style="width:36px; height:36px; object-fit:cover;">` : `<span style="font-size:1.3rem;">${p.icon}</span>`}</td>
         <td>${p.name}</td><td>${cat?cat.name:'—'}</td><td class="en">${p.durations.filter(d=>d.price>0).length}</td>
+        <td><span class="status-badge ${p.fulfillment_type==='manual'?'pending':'paid'}">${p.fulfillment_type==='manual'?'يدوي':'تلقائي'}</span></td>
         <td><span class="status-badge ${p.status==='active'?'paid':'expired'}">${p.status==='active'?'نشط':'موقوف'}</span></td>
         <td>${p.featured?'✓':'—'}</td>
         <td style="display:flex; gap:8px;"><button class="view-btn" onclick="openProductForm('${p.id}')">تعديل</button>
@@ -1840,11 +1939,16 @@ async function pageAdminProducts(){
     </div>`, await unreadNotifCount());
 }
 let PF_IMAGES = [];
-let PF_UPLOADING = false;
+let PF_TIERS = [];
+let PF_ORIGINAL_TIER_KEYS = [];
+let PF_INFOFIELDS = [];
+
 function openProductForm(id){
   const p = id? getProduct(id) : null;
   PF_IMAGES = p && p.images ? p.images.slice() : [];
-  const durLabels = [['d1','يوم واحد'],['d7','أسبوع'],['d30','شهر'],['d90','3 أشهر'],['dlife','مدى الحياة']];
+  PF_TIERS = p && p.durations && p.durations.length ? p.durations.map(d=>({key:d.id, label:d.label, price:d.price})) : [{key:null,label:'',price:0}];
+  PF_ORIGINAL_TIER_KEYS = p && p.durations ? p.durations.map(d=>d.id) : [];
+  PF_INFOFIELDS = p && p.info_fields && p.info_fields.length ? p.info_fields.map(f=>({...f})) : [];
   const body = `
     <div class="form-row"><label>اسم المنتج</label><input id="pf-name" value="${p?p.name:''}"></div>
     <div class="form-row"><label>الوصف</label><textarea id="pf-desc" rows="3">${p?(p.description||''):''}</textarea></div>
@@ -1861,12 +1965,32 @@ function openProductForm(id){
       <div><label>الحالة</label><select id="pf-status"><option value="active" ${p&&p.status==='active'?'selected':''}>نشط</option><option value="inactive" ${p&&p.status==='inactive'?'selected':''}>موقوف</option></select></div>
       <div><label>منتج مميز</label><select id="pf-featured"><option value="1" ${p&&p.featured?'selected':''}>نعم</option><option value="0" ${p&&!p.featured?'selected':''}>لا</option></select></div>
     </div>
-    <h4 style="margin-top:16px; color:#fff;">الأسعار حسب المدة (${DB.settings.currency})</h4>
-    <div class="dur-price-grid">${durLabels.map(([key,label])=>{const existing=p?p.durations.find(d=>d.id===key):null; return `<div><label>${label}</label><input class="en" type="number" step="0.001" min="0" id="pf-price-${key}" value="${existing?existing.price:0}"></div>`;}).join('')}</div>
+
+    <h4 style="margin-top:16px; color:#fff;">الباقات والأسعار (${DB.settings.currency})</h4>
+    <p class="hint">اكتب أي اسم باقة تريده (مثال: 1000 متابع، سيرفر بوست شهر، غير محدود...) وسعرها. حذف باقة موجودة مسبقاً يحذف الأكواد المرتبطة بها أيضاً.</p>
+    <div id="pf-tiers-list"></div>
+    <button class="btn-outline" style="width:100%; margin-top:8px;" onclick="addTierRow()">+ إضافة باقة</button>
+
+    <div class="form-row" style="margin-top:18px;"><label>نوع التسليم</label>
+      <select id="pf-fulfillment" onchange="toggleInfoFieldsSection()">
+        <option value="code" ${!p||p.fulfillment_type==='code'?'selected':''}>تلقائي (كود تفعيل من المخزون)</option>
+        <option value="manual" ${p&&p.fulfillment_type==='manual'?'selected':''}>يدوي (تنفيذ يدوي بمعلومات من العميل)</option>
+      </select>
+    </div>
+    <div id="pf-infofields-section" style="display:none;">
+      <h4 style="color:#fff;">الحقول المطلوبة من العميل عند الشراء</h4>
+      <p class="hint">مثال: رابط سيرفرك، حساب الدسكورد... تظهر هذي الحقول بصفحة المنتج ويجب تعبئتها قبل الإضافة للسلة.</p>
+      <div id="pf-infofields-list"></div>
+      <button class="btn-outline" style="width:100%; margin-top:8px;" onclick="addInfoFieldRow()">+ إضافة حقل</button>
+    </div>
+
     <button class="btn-primary" style="width:100%; margin-top:18px;" id="pf-submit-btn" onclick="submitProductForm('${p?p.id:''}')">${p?'حفظ التعديلات':'إضافة المنتج'}</button>
   `;
   openModal(p?'تعديل منتج':'إضافة منتج جديد', body);
   renderPfImageGrid();
+  renderPfTiers();
+  renderPfInfoFields();
+  toggleInfoFieldsSection();
 }
 function renderPfImageGrid(){
   const grid = document.getElementById('pf-img-grid'); if(!grid) return;
@@ -1889,12 +2013,45 @@ async function handlePfImageSelect(event, productId){
   renderPfImageGrid();
   event.target.value = '';
 }
+
+/* ---------- باقات مرنة (بدون مدد ثابتة) ---------- */
+function renderPfTiers(){
+  const el = document.getElementById('pf-tiers-list'); if(!el) return;
+  el.innerHTML = PF_TIERS.map((t,i)=>`
+    <div class="tier-row">
+      <input placeholder="اسم الباقة (مثال: 1000 متابع)" value="${t.label}" oninput="PF_TIERS[${i}].label=this.value">
+      <input class="en" type="number" step="0.001" placeholder="السعر" value="${t.price}" oninput="PF_TIERS[${i}].price=parseFloat(this.value)||0">
+      <button onclick="removeTierRow(${i})">✕</button>
+    </div>`).join('');
+}
+function addTierRow(){ PF_TIERS.push({key:null, label:'', price:0}); renderPfTiers(); }
+function removeTierRow(i){ PF_TIERS.splice(i,1); renderPfTiers(); }
+
+/* ---------- حقول معلومات العميل (تسليم يدوي) ---------- */
+function toggleInfoFieldsSection(){
+  const sec = document.getElementById('pf-infofields-section'); if(!sec) return;
+  sec.style.display = document.getElementById('pf-fulfillment').value==='manual' ? '' : 'none';
+}
+function renderPfInfoFields(){
+  const el = document.getElementById('pf-infofields-list'); if(!el) return;
+  el.innerHTML = PF_INFOFIELDS.map((f,i)=>`
+    <div class="tier-row">
+      <input placeholder="اسم الحقل (مثال: رابط سيرفرك)" value="${f.label}" oninput="PF_INFOFIELDS[${i}].label=this.value">
+      <input placeholder="نص توضيحي (اختياري)" value="${f.placeholder||''}" oninput="PF_INFOFIELDS[${i}].placeholder=this.value">
+      <button onclick="removeInfoFieldRow(${i})">✕</button>
+    </div>`).join('');
+}
+function addInfoFieldRow(){ PF_INFOFIELDS.push({key:'field_'+uid('').toLowerCase(), label:'', placeholder:''}); renderPfInfoFields(); }
+function removeInfoFieldRow(i){ PF_INFOFIELDS.splice(i,1); renderPfInfoFields(); }
+
 async function submitProductForm(id){
   const btn = document.getElementById('pf-submit-btn');
   const name = document.getElementById('pf-name').value.trim();
   if(!name){ toast('اسم المنتج مطلوب', false); return; }
+  const validTiers = PF_TIERS.filter(t=>t.label.trim());
+  if(!validTiers.length){ toast('أضف باقة واحدة على الأقل', false); return; }
   btn.disabled = true; btn.textContent = 'جارِ الحفظ...';
-  const durLabels = [['d1','يوم واحد',1],['d7','أسبوع',7],['d30','شهر',30],['d90','3 أشهر',90],['dlife','مدى الحياة',0]];
+
   const productData = {
     name, description: document.getElementById('pf-desc').value.trim(),
     category_id: document.getElementById('pf-cat').value,
@@ -1903,6 +2060,10 @@ async function submitProductForm(id){
     featured: document.getElementById('pf-featured').value==='1',
     images: PF_IMAGES.slice(),
     video: document.getElementById('pf-video').value.trim() || null,
+    fulfillment_type: document.getElementById('pf-fulfillment').value,
+    info_fields: document.getElementById('pf-fulfillment').value==='manual'
+      ? PF_INFOFIELDS.filter(f=>f.label.trim())
+      : [],
   };
   let productId = id;
   if(id){
@@ -1913,19 +2074,32 @@ async function submitProductForm(id){
     if(error){ toast('تعذّر إضافة المنتج', false); btn.disabled=false; return; }
     productId = data.id;
   }
-  const durationRows = durLabels.map(([key,label,days])=>({
-    product_id: productId, key, label, days,
-    price: parseFloat(document.getElementById('pf-price-'+key).value)||0
+
+  // احفظ الباقات: كل باقة لها مفتاح ثابت (يبقى كما هو للباقات الموجودة، جديد للباقات الجديدة)
+  const durationRows = validTiers.map(t=>({
+    product_id: productId,
+    key: t.key || uid('t_').toLowerCase(),
+    label: t.label.trim(),
+    days: 0,
+    price: t.price||0
   }));
   const {error:durErr} = await sb.from('product_durations').upsert(durationRows, {onConflict:'product_id,key'});
-  if(durErr){ toast('تم حفظ المنتج لكن حدث خطأ في الأسعار', false); }
+  if(durErr){ toast('تم حفظ المنتج لكن حدث خطأ في الباقات', false); }
+
+  // احذف الباقات اللي شالها الأدمن من القائمة (كانت موجودة سابقاً وما عادت موجودة)
+  const currentKeys = validTiers.map(t=>t.key).filter(Boolean);
+  const removedKeys = PF_ORIGINAL_TIER_KEYS.filter(k=>!currentKeys.includes(k));
+  if(removedKeys.length){
+    await sb.from('product_durations').delete().eq('product_id', productId).in('key', removedKeys);
+  }
+
   await sb.from('activity_logs').insert({actor:currentCustomer().name, action: id?'تعديل منتج':'إضافة منتج', detail:name});
   await fetchProducts();
   toast('تم الحفظ ✓'); closeModal(); render();
 }
 async function handleDeleteProduct(id){
   const p = getProduct(id);
-  if(!confirm(`حذف "${p.name}"؟ سيتم حذف الأكواد والمدد المرتبطة به أيضاً.`)) return;
+  if(!confirm(`حذف "${p.name}"؟ سيتم حذف الأكواد والباقات المرتبطة به أيضاً.`)) return;
   const {error} = await sb.from('products').delete().eq('id',id);
   if(error){ toast('تعذّر الحذف', false); return; }
   await sb.from('activity_logs').insert({actor:currentCustomer().name, action:'حذف منتج', detail:p.name});
@@ -1945,18 +2119,43 @@ async function pageAdminCategories(){
 }
 function openCategoryForm(id){
   const c = id? getCategory(id) : null;
+  window.CF_BANNER = c && c.banner_image ? c.banner_image : null;
   const body = `<div class="form-row"><label>اسم التصنيف</label><input id="cf-name" value="${c?c.name:''}"></div>
     <div class="form-row"><label>أيقونة</label><input id="cf-icon" value="${c?c.icon:'🗂️'}"></div>
+    <div class="form-row">
+      <label>خلفية بانر القسم بالصفحة الرئيسية (اختياري)</label>
+      <div id="cf-banner-preview"></div>
+      <input type="file" id="cf-banner-file" accept="image/*" style="display:none;" onchange="handleCfBannerSelect(event)">
+      <div class="upload-drop" id="cf-banner-drop" onclick="document.getElementById('cf-banner-file').click()">+ اختر صورة خلفية</div>
+    </div>
     <input type="hidden" id="cf-id" value="${c?c.id:''}">
     <button class="btn-primary" style="width:100%;" onclick="submitCategoryForm('${c?c.id:''}')">${c?'حفظ':'إضافة'}</button>`;
   openModal(c?'تعديل تصنيف':'تصنيف جديد', body);
+  renderCfBannerPreview();
+}
+function renderCfBannerPreview(){
+  const el = document.getElementById('cf-banner-preview'); if(!el) return;
+  el.innerHTML = window.CF_BANNER? `<div class="img-thumb" style="width:100%; height:90px; margin-bottom:10px;"><img src="${window.CF_BANNER}" style="width:100%; height:100%; object-fit:cover;"><button onclick="window.CF_BANNER=null; renderCfBannerPreview();">✕</button></div>` : '';
+}
+async function handleCfBannerSelect(event){
+  const file = event.target.files[0]; if(!file) return;
+  const drop = document.getElementById('cf-banner-drop'); drop.textContent = 'جارِ الرفع...';
+  const path = `category-banners/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g,'_')}`;
+  const {error} = await sb.storage.from('product-images').upload(path, file);
+  drop.textContent = '+ اختر صورة خلفية';
+  if(error){ toast('تعذّر رفع الصورة', false); return; }
+  const {data} = sb.storage.from('product-images').getPublicUrl(path);
+  window.CF_BANNER = data.publicUrl;
+  renderCfBannerPreview();
+  event.target.value='';
 }
 async function submitCategoryForm(id){
   const name = document.getElementById('cf-name').value.trim();
   const icon = document.getElementById('cf-icon').value.trim()||'🗂️';
   if(!name){ toast('اسم التصنيف مطلوب', false); return; }
-  if(id){ await sb.from('categories').update({name,icon}).eq('id',id); }
-  else { await sb.from('categories').insert({id:uid('cat_').toLowerCase(), name, icon}); }
+  const payload = {name, icon, banner_image: window.CF_BANNER||null};
+  if(id){ await sb.from('categories').update(payload).eq('id',id); }
+  else { await sb.from('categories').insert({id:uid('cat_').toLowerCase(), ...payload}); }
   await sb.from('activity_logs').insert({actor:currentCustomer().name, action:'حفظ تصنيف', detail:name});
   await fetchCategories();
   closeModal(); toast('تم الحفظ ✓'); render();
@@ -2046,19 +2245,28 @@ async function openOrderDetail(id){
   const {data:o} = await sb.from('orders').select('*, profiles(name)').eq('id',id).single();
   const p = getProduct(o.product_id); const d = getDuration(p,o.duration_key);
   const codeRec = await getCodeByIdAsync(o.code_id);
+  const isManual = p && p.fulfillment_type==='manual';
   const body = `
     <div class="sum-row"><span>العميل</span><span>${o.profiles?o.profiles.name:'—'}</span></div>
     <div class="sum-row"><span>المنتج</span><span>${p?p.name:'—'} — ${d?d.label:''}</span></div>
     <div class="sum-row"><span>المبلغ</span><span class="en">${money(o.amount)} ${DB.settings.currency}</span></div>
     <div class="sum-row"><span>طريقة الدفع</span><span>${o.payment_method}</span></div>
     <div class="sum-row"><span>الكوبون</span><span class="en">${o.coupon_code||'—'}</span></div>
+    ${isManual ? `
+    <div class="sum-row"><span>نوع التسليم</span><span>يدوي</span></div>
+    ${o.order_notes && Object.keys(o.order_notes).length ? Object.entries(o.order_notes).map(([k,v])=>{
+      const field = p.info_fields && p.info_fields.find(f=>f.key===k);
+      return `<div class="sum-row"><span>${field?field.label:k}</span><span class="en">${v}</span></div>`;
+    }).join('') : `<div class="sum-row"><span>معلومات العميل</span><span>—</span></div>`}
+    ` : `
     <div class="sum-row"><span>الكود</span><span class="en">${codeRec?codeRec.code:'—'}</span></div>
     <div class="sum-row"><span>حالة الكود</span><span>${codeRec?codeStatusLabel(codeRec.status):'—'}</span></div>
+    `}
     <div class="sum-row"><span>وقت الشراء</span><span>${fmtDateTime(o.created_at)}</span></div>
     <div class="form-row" style="margin-top:14px;"><label>حالة الطلب</label>
       <select id="ord-status">${['paid','pending','failed'].map(s=>`<option value="${s}" ${o.status===s?'selected':''}>${orderStatusLabel(s)}</option>`).join('')}</select></div>
     <button class="btn-primary" style="width:100%;" onclick="submitOrderStatus('${o.id}')">حفظ الحالة</button>
-    <button class="btn-outline" style="width:100%; margin-top:10px;" onclick="openRefund('${o.id}')">استرجاع (Refund)</button>`;
+    ${!isManual? `<button class="btn-outline" style="width:100%; margin-top:10px;" onclick="openRefund('${o.id}')">استرجاع (Refund)</button>` : ''}`;
   openModal('طلب #'+o.id.slice(0,8), body);
 }
 async function submitOrderStatus(id){
