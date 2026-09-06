@@ -769,9 +769,8 @@ const LOGO_SRC = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAA4QAAAJpCAYAAAD1
    عدّل السطرين التاليين ببيانات مشروعك في Supabase:
    Project Settings → API → Project URL / anon public key
 ================================================================ */
-const SUPABASE_URL = 'https://gckjxtwwexytpynclvbw.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdja2p4dHd3ZXh5dHB5bmNsdmJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0NTY0OTgsImV4cCI6MjEwNDAzMjQ5OH0.wdwUyi4OczAb3sJx5ygiDFkF-VEs3HVndIpSvoakxhU';
-
+const SUPABASE_URL = 'https://YOUR-PROJECT.supabase.co';
+const SUPABASE_ANON_KEY = 'YOUR-ANON-PUBLIC-KEY';
 
 const CONFIGURED = !SUPABASE_URL.includes('YOUR-PROJECT') && !SUPABASE_ANON_KEY.includes('YOUR-ANON-PUBLIC-KEY');
 let sb = null;
@@ -812,6 +811,7 @@ function fmtDateTime(ts){ if(!ts) return '—'; return new Date(ts).toLocaleStri
 function timeAgo(ts){ if(!ts) return '—'; const diff=Date.now()-new Date(ts).getTime(); const h=Math.floor(diff/3600000); if(h<1) return 'قبل قليل'; if(h<24) return `قبل ${h} ساعة`; return `قبل ${Math.floor(h/24)} يوم`; }
 function stars(n){ n=Math.max(0,Math.min(5,Math.round(n||0))); return '★★★★★☆☆☆☆☆'.slice(5-n,10-n); }
 function esc(s){ const d=document.createElement('div'); d.textContent = (s===null||s===undefined)? '' : String(s); return d.innerHTML; }
+function escAttr(s){ return esc(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 function currentCustomer(){ return DB.profile; }
 function isLoggedIn(){ return !!DB.profile; }
 function isAdmin(){ return !!(DB.profile && (DB.profile.role==='admin' || DB.profile.role==='super_admin')); }
@@ -907,7 +907,7 @@ function priceRange(prod){
 }
 function codeStatusLabel(s){ return {available:'متاح', sold:'مباع', redeemed:'مُفعّل', expired:'منتهي', disabled:'معطّل'}[s]||s; }
 function orderStatusLabel(s){ return {paid:'مدفوع', pending:'قيد الانتظار', failed:'فشل'}[s]||s; }
-function catLabel(c){ return c ? (c.icon? c.icon+' '+c.name : c.name) : ''; }
+function catLabel(c){ return c ? (c.icon? esc(c.icon)+' '+esc(c.name) : esc(c.name)) : ''; }
 
 /* ---------- المخزون / الإثبات الاجتماعي (عبر RPC آمنة) ---------- */
 async function availableCodesCountAsync(productId,durationId){
@@ -1070,7 +1070,7 @@ function customerHeader(){
   const cust = currentCustomer();
   const banners = DB.settings.banners||[];
   return `
-  ${banners.length? `<div class="promo-bar" id="promo-bar"><span id="promo-text">${banners[0].text}</span></div>`:''}
+  ${banners.length? `<div class="promo-bar" id="promo-bar"><span id="promo-text">${esc(banners[0].text)}</span></div>`:''}
   <header id="site-header" style="${banners.length?'top:34px;':''}">
     <a href="#/" class="brand">
       <img src="${LOGO_SRC}" alt="Lx S7L">
@@ -1294,7 +1294,7 @@ async function pageStore(params){
         ${DB.categories.map(c=>`<a href="#/store?cat=${c.id}" class="chip ${activeCat===c.id?'active':''}">${catLabel(c)}</a>`).join('')}
       </div>
       <form onsubmit="event.preventDefault(); go('#/store?cat=${activeCat}&q='+encodeURIComponent(document.getElementById('store-q').value));" class="store-search">
-        <input id="store-q" type="text" placeholder="ابحث عن منتج..." value="${q}">
+        <input id="store-q" type="text" placeholder="ابحث عن منتج..." value="${escAttr(q)}">
         <button type="submit">بحث</button>
       </form>
     </div>`;
@@ -1405,7 +1405,7 @@ async function pageProduct(id){
         ${isManual && infoFields.length? `
         <div class="info-fields-box">
           <h4 style="color:#fff; font-size:.9rem; margin-bottom:12px;">معلومات التنفيذ</h4>
-          ${infoFields.map((f,i)=>`<div class="form-row"><label>${f.label}</label><input id="pf-info-${i}" class="en" placeholder="${f.placeholder||''}"></div>`).join('')}
+          ${infoFields.map((f,i)=>`<div class="form-row"><label>${esc(f.label)}</label><input id="pf-info-${i}" class="en" placeholder="${escAttr(f.placeholder||'')}"></div>`).join('')}
         </div>` : ''}
 
         <div class="pd-buy">
@@ -1528,8 +1528,8 @@ function pageCheckout(){
     <div class="cart-wrap">
       <div class="glass-panel">
         <h3>بيانات العميل</h3>
-        <div class="form-row"><label>الاسم</label><input value="${esc(cust.name)}" disabled></div>
-        <div class="form-row"><label>البريد الإلكتروني</label><input value="${cust.email}" disabled></div>
+        <div class="form-row"><label>الاسم</label><input value="${escAttr(cust.name)}" disabled></div>
+        <div class="form-row"><label>البريد الإلكتروني</label><input value="${escAttr(cust.email)}" disabled></div>
         <h3 style="margin-top:22px;">كوبون الخصم</h3>
         <div class="code-input"><input id="coupon-input" class="en" placeholder="S7L20"><button onclick="applyCouponPreview()">تطبيق</button></div>
         <div id="coupon-msg" class="hint"></div>
@@ -1717,8 +1717,8 @@ async function pageAccount(params){
       <p class="hint" style="margin-top:10px;">كل صديق يسجّل عبر رابطك يمنحك 50 نقطة، ويحصل هو على 20 نقطة ترحيبية.</p>`;
   } else if(tab==='profile'){
     body = `
-      <div class="form-row"><label>الاسم</label><input value="${esc(cust.name)}" disabled></div>
-      <div class="form-row"><label>البريد الإلكتروني</label><input value="${cust.email}" disabled></div>
+      <div class="form-row"><label>الاسم</label><input value="${escAttr(cust.name)}" disabled></div>
+      <div class="form-row"><label>البريد الإلكتروني</label><input value="${escAttr(cust.email)}" disabled></div>
       <div class="form-row"><label>تاريخ التسجيل</label><input value="${fmtDate(cust.created_at)}" disabled></div>
       <button class="btn-outline" onclick="handleLogout()">تسجيل الخروج</button>`;
   }
@@ -1734,6 +1734,7 @@ async function pageAccount(params){
 
 /* ---------- تفعيل / تحقق ---------- */
 function pageRedeem(){
+  if(!isLoggedIn()) return renderRedirectNotice('يجب تسجيل الدخول أولاً لتفعيل الكود','#/login?next=/redeem');
   return `
   <section style="padding-top:170px; min-height:60vh;">
     <div class="section-head"><h2 class="en">Redeem Code</h2><p>أدخل الكود لتفعيل منتجك وبدء احتساب المدة.</p></div>
@@ -1985,17 +1986,17 @@ function openProductForm(id){
   PF_ORIGINAL_TIER_KEYS = p && p.durations ? p.durations.map(d=>d.id) : [];
   PF_INFOFIELDS = p && p.info_fields && p.info_fields.length ? p.info_fields.map(f=>({...f})) : [];
   const body = `
-    <div class="form-row"><label>اسم المنتج</label><input id="pf-name" value="${p?p.name:''}"></div>
+    <div class="form-row"><label>اسم المنتج</label><input id="pf-name" value="${p?escAttr(p.name):''}"></div>
     <div class="form-row"><label>الوصف</label><textarea id="pf-desc" rows="3">${p?(p.description||''):''}</textarea></div>
     <div class="form-row"><label>التصنيف</label><select id="pf-cat">${DB.categories.map(c=>`<option value="${c.id}" ${p&&p.category_id===c.id?'selected':''}>${catLabel(c)}</option>`).join('')}</select></div>
-    <div class="form-row"><label>أيقونة (تُستخدم إذا لم تُضف صور)</label><input id="pf-icon" value="${p?p.icon:'🎮'}"></div>
+    <div class="form-row"><label>أيقونة (تُستخدم إذا لم تُضف صور)</label><input id="pf-icon" value="${p?escAttr(p.icon):'🎮'}"></div>
     <div class="form-row">
       <label>صور المنتج (تُرفع مباشرة إلى Supabase Storage)</label>
       <div class="img-upload-grid" id="pf-img-grid"></div>
       <input type="file" id="pf-img-file" accept="image/*" multiple style="display:none;" onchange="handlePfImageSelect(event,'${p?p.id:''}')">
       <div class="upload-drop" id="pf-upload-drop" onclick="document.getElementById('pf-img-file').click()">+ إضافة صور</div>
     </div>
-    <div class="form-row"><label>رابط فيديو / GIF (اختياري)</label><input id="pf-video" class="en" value="${p&&p.video?p.video:''}"></div>
+    <div class="form-row"><label>رابط فيديو / GIF (اختياري)</label><input id="pf-video" class="en" value="${p&&p.video?escAttr(p.video):''}"></div>
     <div class="form-row-2">
       <div><label>الحالة</label><select id="pf-status"><option value="active" ${p&&p.status==='active'?'selected':''}>نشط</option><option value="inactive" ${p&&p.status==='inactive'?'selected':''}>موقوف</option></select></div>
       <div><label>منتج مميز</label><select id="pf-featured"><option value="1" ${p&&p.featured?'selected':''}>نعم</option><option value="0" ${p&&!p.featured?'selected':''}>لا</option></select></div>
@@ -2054,7 +2055,7 @@ function renderPfTiers(){
   const el = document.getElementById('pf-tiers-list'); if(!el) return;
   el.innerHTML = PF_TIERS.map((t,i)=>`
     <div class="tier-row">
-      <input placeholder="اسم الباقة (مثال: 1000 متابع)" value="${t.label}" oninput="PF_TIERS[${i}].label=this.value">
+      <input placeholder="اسم الباقة (مثال: 1000 متابع)" value="${escAttr(t.label)}" oninput="PF_TIERS[${i}].label=this.value">
       <input class="en" type="number" step="0.001" placeholder="السعر" value="${t.price}" oninput="PF_TIERS[${i}].price=parseFloat(this.value)||0">
       <button onclick="removeTierRow(${i})">✕</button>
     </div>`).join('');
@@ -2071,8 +2072,8 @@ function renderPfInfoFields(){
   const el = document.getElementById('pf-infofields-list'); if(!el) return;
   el.innerHTML = PF_INFOFIELDS.map((f,i)=>`
     <div class="tier-row">
-      <input placeholder="اسم الحقل (مثال: رابط سيرفرك)" value="${f.label}" oninput="PF_INFOFIELDS[${i}].label=this.value">
-      <input placeholder="نص توضيحي (اختياري)" value="${f.placeholder||''}" oninput="PF_INFOFIELDS[${i}].placeholder=this.value">
+      <input placeholder="اسم الحقل (مثال: رابط سيرفرك)" value="${escAttr(f.label)}" oninput="PF_INFOFIELDS[${i}].label=this.value">
+      <input placeholder="نص توضيحي (اختياري)" value="${escAttr(f.placeholder||'')}" oninput="PF_INFOFIELDS[${i}].placeholder=this.value">
       <button onclick="removeInfoFieldRow(${i})">✕</button>
     </div>`).join('');
 }
@@ -2159,8 +2160,8 @@ async function pageAdminCategories(){
 function openCategoryForm(id){
   const c = id? getCategory(id) : null;
   window.CF_BANNER = c && c.banner_image ? c.banner_image : null;
-  const body = `<div class="form-row"><label>اسم التصنيف</label><input id="cf-name" value="${c?c.name:''}"></div>
-    <div class="form-row"><label>أيقونة (اختياري)</label><input id="cf-icon" placeholder="مثال: 🎮" value="${c&&c.icon?c.icon:''}"></div>
+  const body = `<div class="form-row"><label>اسم التصنيف</label><input id="cf-name" value="${c?escAttr(c.name):''}"></div>
+    <div class="form-row"><label>أيقونة (اختياري)</label><input id="cf-icon" placeholder="مثال: 🎮" value="${c&&c.icon?escAttr(c.icon):''}"></div>
     <div class="form-row">
       <label>خلفية بانر القسم بالصفحة الرئيسية (اختياري)</label>
       <div id="cf-banner-preview"></div>
@@ -2492,7 +2493,7 @@ async function pageAdminSettings(){
   return adminShell('settings', `
     <div class="admin-head"><h2>الإعدادات العامة</h2><p>إعدادات المتجر الأساسية.</p></div>
     <div class="admin-panel" style="max-width:560px;">
-      <div class="form-row"><label>اسم المتجر</label><input id="st-name" value="${s.store_name}"></div>
+      <div class="form-row"><label>اسم المتجر</label><input id="st-name" value="${escAttr(s.store_name)}"></div>
       <div class="form-row-2">
         <div><label>العملة الافتراضية</label><select id="st-currency">${['OMR','USD','SAR','AED'].map(c=>`<option ${s.currency===c?'selected':''}>${c}</option>`).join('')}</select></div>
         <div><label>نسبة التشغيل %</label><input class="en" type="number" step="0.1" id="st-uptime" value="${s.stats_uptime}"></div>
@@ -2519,7 +2520,7 @@ async function pageAdminSettings(){
     <div class="admin-panel" style="max-width:560px; margin-top:20px;">
       <h3>الشريط الترويجي المتحرك</h3>
       <div id="banner-list">${(s.banners||[]).map(b=>`<div class="form-row" style="display:flex; gap:8px; align-items:flex-end;">
-        <div style="flex:1;"><input class="en" value="${b.text}" id="bn-${b.id}"></div>
+        <div style="flex:1;"><input class="en" value="${escAttr(b.text)}" id="bn-${b.id}"></div>
         <button class="view-btn" style="color:var(--ember); border-color:var(--ember); height:44px;" onclick="removeBanner('${b.id}')">حذف</button></div>`).join('')}</div>
       <button class="btn-outline" style="width:100%;" onclick="saveBanners()">حفظ الشريط</button>
       <div class="code-input" style="margin-top:14px;"><input id="new-banner-text" placeholder="نص إعلان جديد"><button onclick="addBanner()">إضافة</button></div>
