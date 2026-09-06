@@ -772,6 +772,7 @@ const LOGO_SRC = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAA4QAAAJpCAYAAAD1
 const SUPABASE_URL = 'https://gckjxtwwexytpynclvbw.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdja2p4dHd3ZXh5dHB5bmNsdmJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0NTY0OTgsImV4cCI6MjEwNDAzMjQ5OH0.wdwUyi4OczAb3sJx5ygiDFkF-VEs3HVndIpSvoakxhU';
 
+
 const CONFIGURED = !SUPABASE_URL.includes('YOUR-PROJECT') && !SUPABASE_ANON_KEY.includes('YOUR-ANON-PUBLIC-KEY');
 let sb = null;
 function initSupabaseClient(){
@@ -810,6 +811,7 @@ function fmtDate(ts){ if(!ts) return '—'; return new Date(ts).toLocaleDateStri
 function fmtDateTime(ts){ if(!ts) return '—'; return new Date(ts).toLocaleString('ar-OM',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}); }
 function timeAgo(ts){ if(!ts) return '—'; const diff=Date.now()-new Date(ts).getTime(); const h=Math.floor(diff/3600000); if(h<1) return 'قبل قليل'; if(h<24) return `قبل ${h} ساعة`; return `قبل ${Math.floor(h/24)} يوم`; }
 function stars(n){ n=Math.max(0,Math.min(5,Math.round(n||0))); return '★★★★★☆☆☆☆☆'.slice(5-n,10-n); }
+function esc(s){ const d=document.createElement('div'); d.textContent = (s===null||s===undefined)? '' : String(s); return d.innerHTML; }
 function currentCustomer(){ return DB.profile; }
 function isLoggedIn(){ return !!DB.profile; }
 function isAdmin(){ return !!(DB.profile && (DB.profile.role==='admin' || DB.profile.role==='super_admin')); }
@@ -1083,18 +1085,18 @@ function customerHeader(){
       <a href="#/contact">الدعم</a>
     </nav>
     <div class="nav-actions">
-      <a href="https://discord.gg/s7l" target="_blank" rel="noopener" class="discord-pill">
+      <a href="https://discord.gg/JHmUmENhcc" target="_blank" rel="noopener" class="discord-pill">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
         تواصل معنا عبر الديسكورد
       </a>
       ${DB.compare.length? `<a href="#/compare" class="icon-btn" aria-label="المقارنة">⇄<span class="badge">${DB.compare.length}</span></a>`:''}
       <a href="#/cart" class="icon-btn" aria-label="السلة">🛒${cartCount()?`<span class="badge">${cartCount()}</span>`:''}</a>
-      ${cust ? `<a href="#/account" class="btn-login">${cust.name.split(' ')[0]}</a>` : `<a href="#/login" class="btn-login">تسجيل الدخول</a>`}
+      ${cust ? `<a href="#/account" class="btn-login">${esc(cust.name.split(' ')[0])}</a>` : `<a href="#/login" class="btn-login">تسجيل الدخول</a>`}
       <button class="burger" id="burger-btn" aria-label="القائمة">☰</button>
     </div>
   </header>
   <div id="mobile-panel">
-    <a href="https://discord.gg/s7l" target="_blank" rel="noopener" class="mnav discord-pill" style="margin-bottom:10px;">
+    <a href="https://discord.gg/JHmUmENhcc" target="_blank" rel="noopener" class="mnav discord-pill" style="margin-bottom:10px;">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
       تواصل معنا عبر الديسكورد
     </a>
@@ -1268,7 +1270,7 @@ async function pageHome(){
   ${recent.length? `
   <section id="activity-feed" style="padding-top:0;">
     <div class="section-head"><h2>آخر <em>عمليات التفعيل</em></h2></div>
-    <div class="feed-row">${recent.map(r=>`<div class="feed-item">✅ <b>${r.displayName}</b> فعّل <span>${r.productName}</span> <small>${timeAgo(r.ts)}</small></div>`).join('')}</div>
+    <div class="feed-row">${recent.map(r=>`<div class="feed-item">✅ <b>${esc(r.displayName)}</b> فعّل <span>${esc(r.productName)}</span> <small>${timeAgo(r.ts)}</small></div>`).join('')}</div>
   </section>` : ''}
 
   <section id="referral-teaser" style="padding-top:0;">
@@ -1417,8 +1419,8 @@ async function pageProduct(id){
     <div class="pd-reviews">
       <h3>تقييمات العملاء</h3>
       ${reviews.length? reviews.map(r=>`<div class="review-row">
-          <div class="review-head"><b>${r.customerName}</b><span class="stars" style="font-size:.8rem;">${stars(r.rating)}</span><span class="hint">${fmtDate(r.created_at)}</span></div>
-          <p>${r.comment}</p></div>`).join('') : `<p class="hint">لا توجد تقييمات بعد.</p>`}
+          <div class="review-head"><b>${esc(r.customerName)}</b><span class="stars" style="font-size:.8rem;">${stars(r.rating)}</span><span class="hint">${fmtDate(r.created_at)}</span></div>
+          <p>${esc(r.comment)}</p></div>`).join('') : `<p class="hint">لا توجد تقييمات بعد.</p>`}
       ${canReview ? `
         <div class="review-form">
           <h4>أضف تقييمك (تم شراء هذا المنتج)</h4>
@@ -1526,7 +1528,7 @@ function pageCheckout(){
     <div class="cart-wrap">
       <div class="glass-panel">
         <h3>بيانات العميل</h3>
-        <div class="form-row"><label>الاسم</label><input value="${cust.name}" disabled></div>
+        <div class="form-row"><label>الاسم</label><input value="${esc(cust.name)}" disabled></div>
         <div class="form-row"><label>البريد الإلكتروني</label><input value="${cust.email}" disabled></div>
         <h3 style="margin-top:22px;">كوبون الخصم</h3>
         <div class="code-input"><input id="coupon-input" class="en" placeholder="S7L20"><button onclick="applyCouponPreview()">تطبيق</button></div>
@@ -1715,14 +1717,14 @@ async function pageAccount(params){
       <p class="hint" style="margin-top:10px;">كل صديق يسجّل عبر رابطك يمنحك 50 نقطة، ويحصل هو على 20 نقطة ترحيبية.</p>`;
   } else if(tab==='profile'){
     body = `
-      <div class="form-row"><label>الاسم</label><input value="${cust.name}" disabled></div>
+      <div class="form-row"><label>الاسم</label><input value="${esc(cust.name)}" disabled></div>
       <div class="form-row"><label>البريد الإلكتروني</label><input value="${cust.email}" disabled></div>
       <div class="form-row"><label>تاريخ التسجيل</label><input value="${fmtDate(cust.created_at)}" disabled></div>
       <button class="btn-outline" onclick="handleLogout()">تسجيل الخروج</button>`;
   }
   return `
   <section style="padding-top:150px; min-height:60vh;">
-    <div class="section-head"><h2>مرحباً <em>${cust.name.split(' ')[0]}</em></h2><p>إدارة طلباتك وأكوادك من مكان واحد.</p></div>
+    <div class="section-head"><h2>مرحباً <em>${esc(cust.name.split(' ')[0])}</em></h2><p>إدارة طلباتك وأكوادك من مكان واحد.</p></div>
     <div class="acc-wrap">
       <div class="acc-tabs">${tabs.map(([k,label])=>`<a href="#/account?tab=${k}" class="acc-tab ${tab===k?'active':''}">${label}</a>`).join('')}</div>
       <div class="acc-body glass-panel">${body}</div>
@@ -1880,7 +1882,7 @@ function adminShell(activeKey, contentHTML, unread){
         <button class="burger admin-burger" onclick="document.querySelector('.admin-sidebar').classList.toggle('open')">☰</button>
         <div class="admin-topbar-right">
           <a href="#/" class="hint" style="color:var(--silver-dim);">عرض الموقع ↗</a>
-          <span class="admin-user">${admin?admin.name:''} <small>${admin?admin.role:''}</small></span>
+          <span class="admin-user">${admin?esc(admin.name):''} <small>${admin?admin.role:''}</small></span>
           <button class="btn-outline" style="padding:8px 16px; font-size:.78rem;" onclick="handleAdminLogout()">خروج</button>
         </div>
       </div>
@@ -1942,7 +1944,7 @@ async function pageAdminOverview(){
       <div class="admin-panel">
         <h3>أحدث الطلبات</h3>
         <table class="admin-table"><thead><tr><th>الطلب</th><th>العميل</th><th>المنتج</th><th>المبلغ</th><th>الحالة</th></tr></thead>
-        <tbody>${(recentOrders||[]).map(o=>{const p=getProduct(o.product_id); return `<tr><td class="en">#${o.id.slice(0,8)}</td><td>${o.profiles?o.profiles.name:'—'}</td><td>${p?p.name:'—'}</td><td class="en">${money(o.amount)}</td><td><span class="status-badge ${o.status}">${orderStatusLabel(o.status)}</span></td></tr>`;}).join('')}</tbody></table>
+        <tbody>${(recentOrders||[]).map(o=>{const p=getProduct(o.product_id); return `<tr><td class="en">#${o.id.slice(0,8)}</td><td>${esc(o.profiles?o.profiles.name:'—')}</td><td>${p?esc(p.name):'—'}</td><td class="en">${money(o.amount)}</td><td><span class="status-badge ${o.status}">${orderStatusLabel(o.status)}</span></td></tr>`;}).join('')}</tbody></table>
       </div>
       <div class="admin-panel">
         <h3>تنبيهات المخزون</h3>
@@ -2273,7 +2275,7 @@ async function pageAdminOrders(){
     <div class="admin-head"><h2>الطلبات</h2><p>جميع طلبات المتجر.</p></div>
     <div class="admin-panel"><table class="admin-table"><thead><tr><th>الطلب</th><th>العميل</th><th>المنتج</th><th>المبلغ</th><th>الحالة</th><th>التاريخ</th><th></th></tr></thead>
     <tbody>${(orders||[]).map(o=>{const p=getProduct(o.product_id); return `<tr>
-      <td class="en">#${o.id.slice(0,8)}</td><td>${o.profiles?o.profiles.name:'—'}</td><td>${p?p.name:'—'}</td>
+      <td class="en">#${o.id.slice(0,8)}</td><td>${esc(o.profiles?o.profiles.name:'—')}</td><td>${p?esc(p.name):'—'}</td>
       <td class="en">${money(o.amount)}</td><td><span class="status-badge ${o.status}">${orderStatusLabel(o.status)}</span></td>
       <td>${fmtDate(o.created_at)}</td><td><button class="view-btn" onclick="openOrderDetail('${o.id}')">تفاصيل</button></td></tr>`;}).join('')}</tbody></table></div>`,
     await unreadNotifCount());
@@ -2284,7 +2286,7 @@ async function openOrderDetail(id){
   const codeRec = await getCodeByIdAsync(o.code_id);
   const isManual = p && p.fulfillment_type==='manual';
   const body = `
-    <div class="sum-row"><span>العميل</span><span>${o.profiles?o.profiles.name:'—'}</span></div>
+    <div class="sum-row"><span>العميل</span><span>${esc(o.profiles?o.profiles.name:'—')}</span></div>
     <div class="sum-row"><span>المنتج</span><span>${p?p.name:'—'} — ${d?d.label:''}</span></div>
     <div class="sum-row"><span>المبلغ</span><span class="en">${money(o.amount)} ${DB.settings.currency}</span></div>
     <div class="sum-row"><span>طريقة الدفع</span><span>${o.payment_method}</span></div>
@@ -2293,7 +2295,7 @@ async function openOrderDetail(id){
     <div class="sum-row"><span>نوع التسليم</span><span>يدوي</span></div>
     ${o.order_notes && Object.keys(o.order_notes).length ? Object.entries(o.order_notes).map(([k,v])=>{
       const field = p.info_fields && p.info_fields.find(f=>f.key===k);
-      return `<div class="sum-row"><span>${field?field.label:k}</span><span class="en">${v}</span></div>`;
+      return `<div class="sum-row"><span>${field?esc(field.label):esc(k)}</span><span class="en">${esc(v)}</span></div>`;
     }).join('') : `<div class="sum-row"><span>معلومات العميل</span><span>—</span></div>`}
     ` : `
     <div class="sum-row"><span>الكود</span><span class="en">${codeRec?codeRec.code:'—'}</span></div>
@@ -2333,7 +2335,7 @@ async function pageAdminCustomers(){
     <tbody>${(customers||[]).map(c=>{
       const custOrders = (orders||[]).filter(o=>o.customer_id===c.id);
       const spent = custOrders.filter(o=>o.status==='paid').reduce((s,o)=>s+Number(o.amount),0);
-      return `<tr><td>${c.name}</td><td class="en">${c.email}</td><td>${c.role}</td><td>${fmtDate(c.created_at)}</td>
+      return `<tr><td>${esc(c.name)}</td><td class="en">${esc(c.email)}</td><td>${c.role}</td><td>${fmtDate(c.created_at)}</td>
         <td class="en">${custOrders.length}</td><td class="en">${money(spent)}</td>
         <td><span class="status-badge ${c.active?'paid':'expired'}">${c.active?'نشط':'معطّل'}</span></td>
         <td><button class="view-btn" onclick="toggleCustomer('${c.id}',${c.active})">${c.active?'تعطيل':'تفعيل'}</button></td></tr>`;
@@ -2421,7 +2423,7 @@ async function pageAdminSupport(){
   return adminShell('support', `
     <div class="admin-head"><h2>تذاكر الدعم</h2><p>متابعة استفسارات ومشاكل العملاء.</p></div>
     <div class="admin-panel">${(tickets||[]).length? tickets.map(t=>`
-      <div class="ticket-row"><div><b>${t.subject}</b><p class="hint">${t.profiles?t.profiles.name:'زائر'} — ${t.message}</p></div>
+      <div class="ticket-row"><div><b>${esc(t.subject)}</b><p class="hint">${esc(t.profiles?t.profiles.name:'زائر')} — ${esc(t.message)}</p></div>
       <span class="status-badge ${t.status==='open'?'pending':(t.status==='resolved'?'paid':'expired')}">${labels[t.status]}</span>
       <select onchange="updateTicketStatus('${t.id}',this.value)" class="select-inline">${Object.entries(labels).map(([k,l])=>`<option value="${k}" ${t.status===k?'selected':''}>${l}</option>`).join('')}</select>
     </div>`).join('') : `<p class="hint">لا توجد تذاكر دعم.</p>`}</div>`, await unreadNotifCount());
@@ -2437,7 +2439,7 @@ async function pageAdminNotifications(){
   await sb.from('notifications').update({read:true}).eq('read',false);
   return adminShell('notifications', `
     <div class="admin-head"><h2>الإشعارات</h2><p>آخر التنبيهات الإدارية.</p></div>
-    <div class="admin-panel">${(notifs||[]).length? notifs.map(n=>`<div class="mini-row"><div><b>${n.text}</b><span>${timeAgo(n.created_at)}</span></div></div>`).join('') : `<p class="hint">لا توجد إشعارات.</p>`}</div>`, 0);
+    <div class="admin-panel">${(notifs||[]).length? notifs.map(n=>`<div class="mini-row"><div><b>${esc(n.text)}</b><span>${timeAgo(n.created_at)}</span></div></div>`).join('') : `<p class="hint">لا توجد إشعارات.</p>`}</div>`, 0);
 }
 
 /* ---------- سجل النشاطات ---------- */
@@ -2446,7 +2448,7 @@ async function pageAdminActivity(){
   return adminShell('activity', `
     <div class="admin-head"><h2>سجل النشاطات</h2><p>كل عملية إدارية أو عملية عميل مهمة.</p></div>
     <div class="admin-panel"><table class="admin-table"><thead><tr><th>المستخدم</th><th>العملية</th><th>التفاصيل</th><th>الوقت</th></tr></thead>
-    <tbody>${(logs||[]).map(l=>`<tr><td>${l.actor}</td><td>${l.action}</td><td class="en">${l.detail||'—'}</td><td>${fmtDateTime(l.created_at)}</td></tr>`).join('')}</tbody></table></div>`,
+    <tbody>${(logs||[]).map(l=>`<tr><td>${esc(l.actor)}</td><td>${esc(l.action)}</td><td class="en">${esc(l.detail||'—')}</td><td>${fmtDateTime(l.created_at)}</td></tr>`).join('')}</tbody></table></div>`,
     await unreadNotifCount());
 }
 
