@@ -1003,7 +1003,7 @@ async function avgRatingAsync(productId){
 }
 async function customerCanReviewAsync(productId){
   if(!isLoggedIn()) return false;
-  const {data:bought} = await sb.from('license_codes').select('id').eq('product_id',productId).eq('user_id',DB.profile.id).in('status',['sold','redeemed']).limit(1);
+  const {data:bought} = await sb.from('orders').select('id').eq('product_id',productId).eq('customer_id',DB.profile.id).eq('status','paid').limit(1);
   if(!bought || !bought.length) return false;
   const {data:already} = await sb.from('reviews').select('id').eq('product_id',productId).eq('customer_id',DB.profile.id).maybeSingle();
   return !already;
@@ -1135,7 +1135,7 @@ function wireHeaderEvents(){
 
 /* ---------- product card (نسخة متزامنة تعتمد على بيانات مُحمّلة مسبقاً) ---------- */
 function productMediaHTML(p){
-  if(p.images && p.images.length) return `<img src="${p.images[0]}" alt="${p.name}" style="width:100%; height:100%; object-fit:cover;">`;
+  if(p.images && p.images.length) return `<img src="${p.images[0]}" alt="${escAttr(p.name)}" style="width:100%; height:100%; object-fit:cover;">`;
   return p.icon;
 }
 function productCard(p, wishedSet){
@@ -1146,7 +1146,7 @@ function productCard(p, wishedSet){
     <a href="#/product/${p.id}">
       <div class="prod-media">${productMediaHTML(p)}${p.featured?'<span class="badge-tag">مميز</span>':''}</div>
       <div class="prod-body">
-        <h3>${p.name}</h3>
+        <h3>${esc(p.name)}</h3>
         <div class="stars">${stars(p.rating)}</div>
         <div class="prod-meta"><div class="price en">${priceRange(p)}</div><span class="view-btn">عرض المنتج</span></div>
       </div>
@@ -1178,14 +1178,14 @@ function categoryBannerSection(cat, products, wishedSet){
     <div class="cat-banner" style="${bgStyle}">
       <div class="cat-banner-inner">
         <div class="cat-banner-text">
-          <h2>${cat.name}</h2>
-          <div class="cat-quicklinks">${products.slice(0,6).map(p=>`<a href="#/product/${p.id}" class="cat-quick-btn">${p.name}</a>`).join('')}</div>
+          <h2>${esc(cat.name)}</h2>
+          <div class="cat-quicklinks">${products.slice(0,6).map(p=>`<a href="#/product/${p.id}" class="cat-quick-btn">${esc(p.name)}</a>`).join('')}</div>
         </div>
         ${cat.icon? `<div class="cat-banner-icon">${cat.icon}</div>` : ''}
       </div>
     </div>
     <div class="cat-carousel-head">
-      <h3>${cat.name}</h3>
+      <h3>${esc(cat.name)}</h3>
       <div class="cat-carousel-nav">
         <button onclick="scrollCarousel('${carId}',1)" aria-label="السابق">‹</button>
         <button onclick="scrollCarousel('${carId}',-1)" aria-label="التالي">›</button>
@@ -1321,7 +1321,7 @@ async function pageStore(params){
     return `
     <div class="store-section">
       <div class="store-section-head">
-        <h3>${c.icon? `<span class="ic">${c.icon}</span> `:''}${c.name}</h3>
+        <h3>${c.icon? `<span class="ic">${esc(c.icon)}</span> `:''}${esc(c.name)}</h3>
         <a href="#/store?cat=${c.id}" class="view-btn">عرض الكل</a>
       </div>
       <div class="prod-grid">${items.map(p=>productCard(p,wishedSet)).join('')}</div>
@@ -1369,7 +1369,7 @@ async function pageProduct(id){
 
   return `
   <section style="padding-top:150px;">
-    <div class="breadcrumb"><a href="#/store">المتجر</a> / <span>${p.name}</span></div>
+    <div class="breadcrumb"><a href="#/store">المتجر</a> / <span>${esc(p.name)}</span></div>
     <div class="product-detail">
       <div>
         <div class="pd-media" id="pd-main-media">${gallery.length? `<img src="${gallery[0]}" style="width:100%; height:100%; object-fit:cover;">` : p.icon}</div>
@@ -1388,16 +1388,16 @@ async function pageProduct(id){
             <button class="icon-btn ${inCompareInit?'active-heart':''}" onclick="handleToggleCompare('${p.id}')" title="أضف للمقارنة">⇄</button>
           </div>
         </div>
-        <h1>${p.name}</h1>
+        <h1>${esc(p.name)}</h1>
         <div class="stars" style="font-size:1rem; margin:10px 0;">${stars(rating)} <span class="en" style="color:var(--silver-dim); font-size:.8rem;">(${reviews.length} تقييم)</span></div>
-        <p class="pd-desc">${p.description||''}</p>
+        <p class="pd-desc">${esc(p.description||'')}</p>
         <p class="social-proof">🔥 اشتراه <b class="en">${boughtToday}</b> شخص اليوم</p>
 
         <h4 style="margin-top:22px; color:#fff; font-size:.95rem;">اختر الباقة</h4>
         <div class="dur-grid" id="dur-grid">
           ${paidDurations.map((d,i)=>`
             <button class="dur-opt ${i===0?'sel':''} ${avail[d.id]<=0?'oos':''}" data-id="${d.id}" data-price="${d.price}" data-avail="${avail[d.id]}" onclick="selectDuration(this)" ${avail[d.id]<=0?'disabled':''}>
-              <span>${d.label}</span><b class="en">${money(d.price)} ${DB.settings.currency}</b>
+              <span>${esc(d.label)}</span><b class="en">${money(d.price)} ${DB.settings.currency}</b>
               ${isManual? '' : `<small>${avail[d.id]>5?'متوفر':(avail[d.id]>0?'كمية محدودة':'نفد المخزون')}</small>`}
             </button>`).join('')}
         </div>
@@ -1542,7 +1542,7 @@ function pageCheckout(){
       </div>
       <div class="cart-summary glass-panel">
         <h3>ملخص الطلب</h3>
-        ${DB.cart.map(i=>{const p=getProduct(i.productId),d=getDuration(p,i.durationId); return `<div class="sum-row"><span>${p.name} — ${d.label}</span><span class="en">${money(d.price*i.qty)} ${DB.settings.currency}</span></div>`}).join('')}
+        ${DB.cart.map(i=>{const p=getProduct(i.productId),d=getDuration(p,i.durationId); return `<div class="sum-row"><span>${esc(p.name)} — ${esc(d.label)}</span><span class="en">${money(d.price*i.qty)} ${DB.settings.currency}</span></div>`}).join('')}
         <div class="sum-row total"><span>الإجمالي</span><span class="en" id="checkout-total">${money(cartTotal())} ${DB.settings.currency}</span></div>
         <button class="btn-primary" style="width:100%; margin-top:16px;" onclick="handleConfirmPayment()">تأكيد الدفع</button>
         <p class="hint" style="margin-top:10px;">لا يُسلَّم الكود إلا بعد تأكيد حالة الدفع.</p>
@@ -1561,7 +1561,16 @@ async function applyCouponPreview(){
   const code = document.getElementById('coupon-input').value.trim();
   const {data:c} = await sb.from('coupons').select('*').ilike('code',code).eq('active',true).maybeSingle();
   const msg = document.getElementById('coupon-msg');
-  if(!c){ msg.textContent='الكوبون غير صالح.'; msg.style.color='var(--ember)'; return; }
+  const now = Date.now();
+  const expired = c && c.expiry && new Date(c.expiry).getTime() < now;
+  const maxedOut = c && c.used >= c.usage_limit;
+  const cartProductIds = DB.cart.map(i=>i.productId);
+  const wrongProduct = c && c.product_id && !cartProductIds.includes(c.product_id);
+  if(!c || expired || maxedOut || wrongProduct){
+    msg.textContent = 'الكوبون غير صالح أو لا ينطبق على منتجات سلتك.'; msg.style.color='var(--ember)';
+    document.getElementById('checkout-total').textContent = money(cartTotal())+' '+DB.settings.currency;
+    return;
+  }
   const total = cartTotal();
   const discounted = c.type==='percent'? total-(total*c.value/100) : Math.max(0,total-c.value);
   document.getElementById('checkout-total').textContent = money(discounted)+' '+DB.settings.currency;
@@ -1794,7 +1803,7 @@ function pageCompare(){
   <section style="padding-top:170px; min-height:60vh;">
     <div class="section-head"><h2>مقارنة <em>المنتجات</em></h2></div>
     <div class="compare-wrap"><table class="compare-table">
-      <thead><tr><th></th>${items.map(p=>`<th><div class="compare-media">${productMediaHTML(p)}</div><div>${p.name}</div><button class="view-btn" onclick="handleToggleCompare('${p.id}')">إزالة</button></th>`).join('')}</tr></thead>
+      <thead><tr><th></th>${items.map(p=>`<th><div class="compare-media">${productMediaHTML(p)}</div><div>${esc(p.name)}</div><button class="view-btn" onclick="handleToggleCompare('${p.id}')">إزالة</button></th>`).join('')}</tr></thead>
       <tbody>
         ${rows.map(([label,fn])=>`<tr><td>${label}</td>${items.map(p=>`<td>${fn(p)}</td>`).join('')}</tr>`).join('')}
         <tr><td></td>${items.map(p=>`<td><a href="#/product/${p.id}" class="btn-primary" style="display:inline-block; padding:10px 20px; font-size:.8rem;">عرض المنتج</a></td>`).join('')}</tr>
@@ -1965,7 +1974,7 @@ async function pageAdminProducts(){
       <table class="admin-table"><thead><tr><th></th><th>الاسم</th><th>التصنيف</th><th>الباقات</th><th>التسليم</th><th>الحالة</th><th>مميز</th><th></th></tr></thead>
       <tbody>${DB.products.map(p=>{const cat=getCategory(p.category_id); return `<tr>
         <td>${p.images&&p.images.length? `<img src="${p.images[0]}" style="width:36px; height:36px; object-fit:cover;">` : `<span style="font-size:1.3rem;">${p.icon}</span>`}</td>
-        <td>${p.name}</td><td>${cat?cat.name:'—'}</td><td class="en">${p.durations.length}</td>
+        <td>${esc(p.name)}</td><td>${cat?esc(cat.name):'—'}</td><td class="en">${p.durations.length}</td>
         <td><span class="status-badge ${p.fulfillment_type==='manual'?'pending':'paid'}">${p.fulfillment_type==='manual'?'يدوي':'تلقائي'}</span></td>
         <td><span class="status-badge ${p.status==='active'?'paid':'expired'}">${p.status==='active'?'نشط':'موقوف'}</span></td>
         <td>${p.featured?'✓':'—'}</td>
@@ -2152,7 +2161,7 @@ async function pageAdminCategories(){
   return adminShell('categories', `
     <div class="admin-head admin-head-actions"><div><h2>التصنيفات</h2><p>تصنيفات المنتجات في المتجر.</p></div><button class="btn-primary" onclick="openCategoryForm()">+ إضافة تصنيف</button></div>
     <div class="cat-row" style="grid-template-columns:repeat(4,1fr);">
-      ${DB.categories.map(c=>`<div class="cat-tile" style="cursor:default;"><div class="ic">${c.icon}</div><span>${c.name}</span>
+      ${DB.categories.map(c=>`<div class="cat-tile" style="cursor:default;"><div class="ic">${esc(c.icon)}</div><span>${esc(c.name)}</span>
         <div style="display:flex; gap:8px; margin-top:10px;"><button class="view-btn" onclick="openCategoryForm('${c.id}')">تعديل</button>
         <button class="view-btn" style="color:var(--ember); border-color:var(--ember);" onclick="handleDeleteCategory('${c.id}')">حذف</button></div></div>`).join('')}
     </div>`, await unreadNotifCount());
@@ -2222,7 +2231,7 @@ async function pageAdminCodes(params){
     <div class="admin-panel">
       <div class="chip-row" style="margin-bottom:16px;">
         <select onchange="go('#/admin/codes?p='+this.value+'&s=${filterStatus}')" class="select-inline">
-          <option value="">كل المنتجات</option>${DB.products.map(p=>`<option value="${p.id}" ${filterProduct===p.id?'selected':''}>${p.name}</option>`).join('')}</select>
+          <option value="">كل المنتجات</option>${DB.products.map(p=>`<option value="${p.id}" ${filterProduct===p.id?'selected':''}>${esc(p.name)}</option>`).join('')}</select>
         <select onchange="go('#/admin/codes?p=${filterProduct}&s='+this.value)" class="select-inline">
           <option value="">كل الحالات</option>${['available','sold','redeemed','expired','disabled'].map(s=>`<option value="${s}" ${filterStatus===s?'selected':''}>${codeStatusLabel(s)}</option>`).join('')}</select>
       </div>
@@ -2239,14 +2248,14 @@ async function pageAdminCodes(params){
 }
 function openImportCodes(){
   const body = `
-    <div class="form-row"><label>المنتج</label><select id="ic-prod">${DB.products.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}</select></div>
+    <div class="form-row"><label>المنتج</label><select id="ic-prod">${DB.products.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></div>
     <div class="form-row"><label>المدة</label><select id="ic-dur"></select></div>
     <div class="form-row"><label>الأكواد (أدخل كوداً واحداً في كل سطر)</label><textarea id="ic-codes" rows="6" class="en" placeholder="LX7L-AAAA-BBBB"></textarea></div>
     <p class="hint">اكتب كودك الخاص كما تريد — لن يتم توليد أي كود تلقائياً.</p>
     <button class="btn-primary" style="width:100%;" id="ic-submit-btn" onclick="submitImportCodes()">إضافة الأكواد</button>`;
   openModal('إضافة أكواد يدوياً', body);
   const prodSel = document.getElementById('ic-prod');
-  const fillDur = ()=>{ const p=getProduct(prodSel.value); document.getElementById('ic-dur').innerHTML = p.durations.map(d=>`<option value="${d.id}">${d.label}</option>`).join(''); };
+  const fillDur = ()=>{ const p=getProduct(prodSel.value); document.getElementById('ic-dur').innerHTML = p.durations.map(d=>`<option value="${d.id}">${esc(d.label)}</option>`).join(''); };
   prodSel.addEventListener('change', fillDur); fillDur();
 }
 async function submitImportCodes(){
