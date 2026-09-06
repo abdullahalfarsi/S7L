@@ -18,17 +18,25 @@
         document.head.appendChild(s);
       });
     }
-    var sources = [
+    var scriptSources = [
       'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
-      'https://unpkg.com/@supabase/supabase-js@2'
+      'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js',
+      'https://unpkg.com/@supabase/supabase-js@2',
+      'https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js',
+      'https://fastly.jsdelivr.net/npm/@supabase/supabase-js@2'
     ];
     return (async function(){
-      for (var i=0; i<sources.length; i++){
+      if (window.supabase) return true;
+      for (var i=0; i<scriptSources.length; i++){
         try{
-          await loadScript(sources[i]);
+          await loadScript(scriptSources[i]);
           if (window.supabase) return true;
         }catch(e){ /* try next source */ }
       }
+      try{
+        var mod = await import('https://esm.sh/@supabase/supabase-js@2');
+        if (mod && mod.createClient){ window.supabase = mod; return true; }
+      }catch(e){ /* فشلت كل المصادر */ }
       return false;
     })();
   })();
@@ -500,6 +508,15 @@
 /* auth */
 .auth-box{max-width:420px; margin:0 auto;}
 .auth-box h2{color:#fff; font-family:'Rajdhani',sans-serif; margin-bottom:8px;}
+.google-btn{
+  width:100%; display:flex; align-items:center; justify-content:center; gap:10px;
+  background:#fff; color:#3c4043; font-weight:600; font-size:.88rem;
+  padding:11px 16px; border-radius:4px; border:1px solid #dadce0;
+  transition:box-shadow .2s ease, background .2s ease;
+}
+.google-btn:hover{box-shadow:0 1px 6px rgba(0,0,0,.3); background:#f8f8f8;}
+.auth-divider{display:flex; align-items:center; gap:12px; margin:18px 0; color:var(--silver-dim); font-size:.78rem;}
+.auth-divider::before, .auth-divider::after{content:""; flex:1; height:1px; background:var(--line);}
 
 /* account */
 .acc-wrap{max-width:1000px; margin:0 auto; display:grid; grid-template-columns:220px 1fr; gap:24px; align-items:start;}
@@ -830,8 +847,22 @@ async function initAuth(){
   if(!CONFIGURED || !sb) return;
   const res = await sb.auth.getSession();
   const session = res && res.data ? res.data.session : null;
-  if(session) await loadProfile(session.user.id);
+  if(session){
+    const meta = session.user.user_metadata || {};
+    await ensureProfile(session.user, meta.full_name || meta.name);
+    const pendingRef = getPendingRef();
+    if(pendingRef){ await sb.rpc('apply_referral', {p_ref_code: pendingRef}); clearPendingRef(); }
+    await loadProfile(session.user.id);
+  }
   sb.auth.onAuthStateChange((event)=>{ if(event==='SIGNED_OUT'){ DB.profile=null; } });
+}
+async function signInWithGoogle(refCode){
+  if(refCode) setPendingRef(refCode);
+  const { error } = await sb.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: location.origin + location.pathname }
+  });
+  if(error) toast(translateAuthError(error), false);
 }
 async function loadProfile(userId){
   const { data, error } = await sb.from('profiles').select('*').eq('id',userId).single();
@@ -1524,7 +1555,7 @@ function pageCheckout(){
   const cust = currentCustomer();
   return `
   <section style="padding-top:150px; min-height:60vh;">
-    <div class="section-head"><h2>إتمام <em>الدفع</em></h2><p>هذا نموذج دفع تجريبي (Demo) — لا يتم خصم أي مبلغ حقيقي.</p></div>
+    <div class="section-head"><h2>إتمام <em>الدفع</em></h2><p>الدفع عبر Tap Sandbox — وضع الاختبار، لا يتم خصم أي مبلغ حقيقي.</p></div>
     <div class="cart-wrap">
       <div class="glass-panel">
         <h3>بيانات العميل</h3>
@@ -1544,7 +1575,7 @@ function pageCheckout(){
         <h3>ملخص الطلب</h3>
         ${DB.cart.map(i=>{const p=getProduct(i.productId),d=getDuration(p,i.durationId); return `<div class="sum-row"><span>${esc(p.name)} — ${esc(d.label)}</span><span class="en">${money(d.price*i.qty)} ${DB.settings.currency}</span></div>`}).join('')}
         <div class="sum-row total"><span>الإجمالي</span><span class="en" id="checkout-total">${money(cartTotal())} ${DB.settings.currency}</span></div>
-        <button class="btn-primary" style="width:100%; margin-top:16px;" onclick="handleConfirmPayment()">تأكيد الدفع</button>
+        <button class="btn-primary" style="width:100%; margin-top:16px;" onclick="handleConfirmPayment()">الدفع عبر Tap</button>
         <p class="hint" style="margin-top:10px;">لا يُسلَّم الكود إلا بعد تأكيد حالة الدفع.</p>
       </div>
     </div>
@@ -1576,13 +1607,168 @@ async function applyCouponPreview(){
   document.getElementById('checkout-total').textContent = money(discounted)+' '+DB.settings.currency;
   msg.textContent = `تم تطبيق الكوبون ${c.code} ✓`; msg.style.color='var(--silver)';
 }
+async function getTapCheckoutAmount(couponCode, usePoints){
+  const baseTotal = Number(cartTotal() || 0);
+  let total = baseTotal;
+
+  if(couponCode){
+    const {data:c} = await sb.from('coupons').select('*').ilike('code', couponCode).eq('active',true).maybeSingle();
+    const now = Date.now();
+    const expired = c && c.expiry && new Date(c.expiry).getTime() < now;
+    const maxedOut = c && c.used >= c.usage_limit;
+    const cartProductIds = DB.cart.map(i=>i.productId);
+    const wrongProduct = c && c.product_id && !cartProductIds.includes(c.product_id);
+
+    if(c && !expired && !maxedOut && !wrongProduct){
+      total = c.type==='percent'
+        ? total-(total*c.value/100)
+        : Math.max(0,total-c.value);
+    }
+  }
+
+  if(usePoints){
+    const cust = currentCustomer();
+    total = Math.max(0, total - pointsToDiscount(cust?.points || 0));
+  }
+
+  return Number(total.toFixed(3));
+}
+
+async function startTapPayment(couponCode, usePoints){
+  if(!sb) return {ok:false, error:'Supabase غير متصل'};
+  if(!DB.cart.length) return {ok:false, error:'السلة فارغة'};
+
+  const amount = await getTapCheckoutAmount(couponCode, usePoints);
+
+  // إذا أصبح الطلب مجانياً بعد الخصم/النقاط، لا نحتاج بوابة دفع.
+  if(amount <= 0) return {ok:true, free:true};
+
+  const checkoutRef = `LXS7L_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+
+  sessionStorage.setItem('lxs7l_pending_tap', JSON.stringify({
+    reference: checkoutRef,
+    coupon: couponCode || null,
+    usePoints: !!usePoints
+  }));
+
+  const {data, error} = await sb.functions.invoke('tap-create-charge', {
+    body:{
+      amount,
+      reference: checkoutRef
+    }
+  });
+
+  if(error || !data?.ok || !data?.transaction_url){
+    sessionStorage.removeItem('lxs7l_pending_tap');
+    return {ok:false, error:data?.error || error?.message || 'تعذّر إنشاء عملية الدفع'};
+  }
+
+  // حفظ رقم العملية المتوقع قبل مغادرة الموقع إلى Tap.
+  const pending = JSON.parse(sessionStorage.getItem('lxs7l_pending_tap') || '{}');
+  pending.charge_id = data.charge_id || null;
+  pending.amount = amount;
+  sessionStorage.setItem('lxs7l_pending_tap', JSON.stringify(pending));
+
+  window.location.href = data.transaction_url;
+  return {ok:true};
+}
+
 async function handleConfirmPayment(){
-  const btn = event.target; btn.disabled=true; btn.textContent='جارِ التنفيذ...';
-  const coupon = document.getElementById('coupon-input')?.value.trim() || null;
-  const usePoints = document.getElementById('use-points')?.checked || false;
-  const res = await checkoutCartAsync(coupon, usePoints);
-  if(!res.ok){ toast(res.error, false); btn.disabled=false; btn.textContent='تأكيد الدفع'; return; }
+  const btn = event.target;
+  btn.disabled=true;
+  btn.textContent='جارِ التحويل إلى Tap...';
+
+  try{
+    const coupon = document.getElementById('coupon-input')?.value.trim() || null;
+    const usePoints = document.getElementById('use-points')?.checked || false;
+
+    const tap = await startTapPayment(coupon, usePoints);
+
+    if(tap.free){
+      const res = await checkoutCartAsync(coupon, usePoints);
+      if(!res.ok) throw new Error(res.error);
+      go('#/order/'+res.orderIds[0]);
+      return;
+    }
+
+    if(!tap.ok) throw new Error(tap.error);
+    // startTapPayment سينقل المستخدم إلى صفحة Tap.
+  }catch(err){
+    toast(err?.message || 'تعذّر بدء الدفع', false);
+    btn.disabled=false;
+    btn.textContent='الدفع عبر Tap';
+  }
+}
+
+async function handleTapReturn(){
+  const params = new URLSearchParams(location.search);
+  if(params.get('tap_return') !== '1') return false;
+
+  const tapId = params.get('tap_id');
+  const rawPending = sessionStorage.getItem('lxs7l_pending_tap');
+
+  // تنظيف query من شريط العنوان حتى لا تتكرر المعالجة عند التحديث.
+  const cleanUrl = location.pathname + (location.hash || '');
+  try{ history.replaceState({}, document.title, cleanUrl); }catch(e){}
+
+  if(!tapId){
+    if(rawPending) sessionStorage.removeItem('lxs7l_pending_tap');
+    toast('لم يتم استلام رقم عملية الدفع من Tap', false);
+    return true;
+  }
+
+  let pending = null;
+  try{ pending = rawPending ? JSON.parse(rawPending) : null; }catch(e){}
+
+  if(!pending){
+    toast('انتهت جلسة الدفع. أعد المحاولة من صفحة الدفع.', false);
+    return true;
+  }
+
+  document.getElementById('app').innerHTML = `
+    <section style="padding-top:180px; min-height:60vh; text-align:center;">
+      <div class="glass-panel" style="max-width:620px; margin:0 auto;">
+        <div style="font-size:2rem; color:var(--ember); margin-bottom:12px;">◈</div>
+        <h2 style="color:#fff;">جارِ التحقق من الدفع</h2>
+        <p class="hint" style="margin-top:10px;">يتم الآن التحقق من عملية Tap Sandbox، يرجى الانتظار...</p>
+      </div>
+    </section>`;
+
+  const {data, error} = await sb.functions.invoke('tap-verify-charge', {
+    body:{tap_id:tapId}
+  });
+
+  if(error || !data?.ok || data.status !== 'CAPTURED'){
+    sessionStorage.removeItem('lxs7l_pending_tap');
+    toast(
+      data?.status
+        ? `لم يكتمل الدفع. الحالة: ${data.status}`
+        : (data?.error || error?.message || 'تعذّر التحقق من الدفع'),
+      false
+    );
+    go('#/checkout');
+    return true;
+  }
+
+  // الدفع مؤكد من Tap فقط الآن؛ عندها ننشئ الطلب ونسلّم الكود عبر RPC.
+  const res = await checkoutCartAsync(pending.coupon, pending.usePoints);
+
+  if(!res.ok){
+    // لا نحذف pending حتى يمكن معرفة أن الدفع تم ولكن إنشاء الطلب فشل.
+    document.getElementById('app').innerHTML = `
+      <section style="padding-top:180px; min-height:60vh; text-align:center;">
+        <div class="glass-panel" style="max-width:620px; margin:0 auto;">
+          <h2 style="color:#fff;">تم تأكيد الدفع</h2>
+          <p class="hint" style="margin-top:10px;">تم تأكيد الدفع من Tap، لكن تعذّر إنشاء الطلب تلقائياً. تواصل مع الدعم ولا تعاود الدفع.</p>
+          <p class="hint en" style="margin-top:8px;">${esc(res.error || 'Order creation failed')}</p>
+        </div>
+      </section>`;
+    return true;
+  }
+
+  sessionStorage.removeItem('lxs7l_pending_tap');
   go('#/order/'+res.orderIds[0]);
+  return true;
 }
 
 async function pageOrder(id){
@@ -1623,12 +1809,26 @@ function renderRedirectNotice(msg, link){
 }
 
 /* ---------- المصادقة ---------- */
+function googleButtonHTML(ref){
+  return `
+  <button class="google-btn" onclick="signInWithGoogle('${ref||''}')">
+    <svg width="18" height="18" viewBox="0 0 48 48">
+      <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.9 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/>
+      <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 15.9 18.9 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/>
+      <path fill="#4CAF50" d="M24 44c5.2 0 10-2 13.5-5.2l-6.2-5.2C29.3 35.5 26.8 36 24 36c-5.2 0-9.6-3.1-11.3-7.6l-6.5 5C9.6 39.6 16.3 44 24 44z"/>
+      <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.2-4.2 5.6l6.2 5.2C39.9 36.9 44 31.9 44 24c0-1.3-.1-2.7-.4-3.5z"/>
+    </svg>
+    الدخول بحساب جوجل
+  </button>
+  <div class="auth-divider"><span>أو</span></div>`;
+}
 function pageLogin(params){
   const next = params.get('next')||'';
   return `
   <section style="padding-top:170px; min-height:60vh;">
     <div class="auth-box glass-panel">
       <h2>تسجيل الدخول</h2>
+      ${googleButtonHTML('')}
       <div class="form-row"><label>البريد الإلكتروني</label><input id="li-email" type="email" placeholder="you@example.com"></div>
       <div class="form-row"><label>كلمة المرور</label><input id="li-pass" type="password"></div>
       <button class="btn-primary" style="width:100%;" onclick="handleLogin('${next}')">دخول</button>
@@ -1653,6 +1853,7 @@ function pageRegister(params){
     <div class="auth-box glass-panel">
       <h2>إنشاء حساب</h2>
       ${ref? `<p class="hint" style="color:var(--ember);">🎁 تمت دعوتك برابط إحالة — ستحصل على 20 نقطة ترحيبية</p>`:''}
+      ${googleButtonHTML(ref)}
       <div class="form-row"><label>الاسم</label><input id="rg-name" placeholder="الاسم الكامل"></div>
       <div class="form-row"><label>البريد الإلكتروني</label><input id="rg-email" type="email" placeholder="you@example.com"></div>
       <div class="form-row"><label>كلمة المرور</label><input id="rg-pass" type="password" placeholder="6 أحرف على الأقل"></div>
@@ -2613,6 +2814,19 @@ function libraryFailedScreen(){
     <button class="btn-primary" style="margin-top:20px;" onclick="location.reload()">إعادة المحاولة</button>
   </section>`;
 }
+function invalidConfigScreen(){
+  const detail = (window.__supabaseInitError || '').toString();
+  return `
+  <section style="padding-top:150px; min-height:80vh; max-width:640px; margin:0 auto; text-align:center;">
+    <h2 style="color:#fff; font-family:'Rajdhani',sans-serif;">⚙️ بيانات الاتصال بـ Supabase غير صحيحة</h2>
+    <p class="hint" style="margin-top:14px; line-height:2;">
+      تم تحميل مكتبة الاتصال بنجاح، لكن قيمة <code class="en" style="color:var(--ember);">SUPABASE_URL</code> أو
+      <code class="en" style="color:var(--ember);">SUPABASE_ANON_KEY</code> بملف الموقع غير صحيحة الشكل.
+      تأكد أن الرابط يبدأ بـ <span class="en">https://</span> وينتهي بـ <span class="en">.supabase.co</span> بدون أي مسافات أو أحرف زايدة.
+    </p>
+    ${detail? `<p class="hint en" style="margin-top:10px; color:var(--ember); direction:ltr;">${detail}</p>` : ''}
+  </section>`;
+}
 
 function maintenanceScreen(){
   return `
@@ -2642,7 +2856,7 @@ async function render(){
   if(!sb){
     document.getElementById('header-slot').style.display='none';
     document.getElementById('footer-slot').style.display='none';
-    app.innerHTML = libraryFailedScreen();
+    app.innerHTML = window.supabase ? invalidConfigScreen() : libraryFailedScreen();
     return;
   }
 
@@ -2733,7 +2947,8 @@ window.addEventListener('DOMContentLoaded', async () => {
       await initAuth();
       await bootstrapPublicData();
     }
-    await render();
+    const handledTapReturn = CONFIGURED && sb ? await handleTapReturn() : false;
+    if(!handledTapReturn) await render();
   } catch(err){
     console.error('Bootstrap error:', err);
     const detail = (window.__supabaseInitError || (err && err.message) || '').toString();
