@@ -582,6 +582,13 @@
   header .discord-pill{display:none;}
 }
 
+/* ---------- out-of-stock badge ---------- */
+.prod-card.prod-oos{opacity:.72;}
+.prod-card.prod-oos:hover{opacity:1;}
+.oos-tag{background:var(--panel-2); color:var(--silver-dim); border:1px solid var(--line);}
+.prod-oos .view-btn{color:var(--silver-dim); border-color:var(--line);}
+.prod-oos:hover .view-btn{color:var(--silver-dim); background:none;}
+
 /* ---------- promo banner ---------- */
 .promo-bar{
   position:fixed; top:0; inset-inline:0; z-index:101; height:34px;
@@ -954,6 +961,11 @@ async function recentRedemptionsAsync(limit){
   if(error||!data) return [];
   return data.map(r=>({displayName:r.display_name, productName:r.product_name, ts:r.activated_at}));
 }
+async function outOfStockSetAsync(){
+  const {data,error} = await sb.rpc('get_products_stock_map');
+  if(error||!data) return new Set();
+  return new Set(data.filter(r=>!r.in_stock).map(r=>r.product_id));
+}
 
 /* ---------- السلة والمقارنة (محلي بالكامل، بلا حاجة لتسجيل الدخول) ---------- */
 function addToCart(productId,durationId,qty,notes){
@@ -1169,17 +1181,18 @@ function productMediaHTML(p){
   if(p.images && p.images.length) return `<img src="${p.images[0]}" alt="${escAttr(p.name)}" style="width:100%; height:100%; object-fit:cover;">`;
   return p.icon;
 }
-function productCard(p, wishedSet){
+function productCard(p, wishedSet, outOfStockSet){
   const wished = wishedSet ? wishedSet.has(p.id) : false;
+  const outOfStock = outOfStockSet ? outOfStockSet.has(p.id) : false;
   return `
-  <div class="prod-card">
+  <div class="prod-card ${outOfStock?'prod-oos':''}">
     <button class="wish-btn ${wished?'active':''}" onclick="event.preventDefault(); handleToggleWishlist('${p.id}')" aria-label="المفضلة">${wished?'❤':'🤍'}</button>
     <a href="#/product/${p.id}">
-      <div class="prod-media">${productMediaHTML(p)}${p.featured?'<span class="badge-tag">مميز</span>':''}</div>
+      <div class="prod-media">${productMediaHTML(p)}${outOfStock? `<span class="badge-tag oos-tag">غير متوفر</span>` : (p.featured?'<span class="badge-tag">مميز</span>':'')}</div>
       <div class="prod-body">
         <h3>${esc(p.name)}</h3>
         <div class="stars">${stars(p.rating)}</div>
-        <div class="prod-meta"><div class="price en">${priceRange(p)}</div><span class="view-btn">عرض المنتج</span></div>
+        <div class="prod-meta"><div class="price en">${priceRange(p)}</div><span class="view-btn">${outOfStock?'غير متوفر':'عرض المنتج'}</span></div>
       </div>
     </a>
   </div>`;
@@ -1199,7 +1212,7 @@ async function handleToggleCompare(pid){
 
 /* ================= الصفحات ================= */
 
-function categoryBannerSection(cat, products, wishedSet){
+function categoryBannerSection(cat, products, wishedSet, outOfStockSet){
   const bgStyle = cat.banner_image
     ? `background-image:linear-gradient(180deg, rgba(5,5,5,.5), rgba(5,5,5,.88)), url('${cat.banner_image}'); background-size:cover; background-position:center;`
     : '';
@@ -1224,7 +1237,7 @@ function categoryBannerSection(cat, products, wishedSet){
       </div>
     </div>
     <div class="cat-carousel" id="${carId}">
-      ${products.map(p=>`<div class="cat-carousel-item">${productCard(p,wishedSet)}</div>`).join('')}
+      ${products.map(p=>`<div class="cat-carousel-item">${productCard(p,wishedSet,outOfStockSet)}</div>`).join('')}
     </div>
   </div>`;
 }
@@ -1234,15 +1247,16 @@ function scrollCarousel(id, dir){
 }
 
 async function pageHome(){
-  const [wishlist, recent] = await Promise.all([
+  const [wishlist, recent, outOfStockSet] = await Promise.all([
     isLoggedIn()? myWishlistAsync() : Promise.resolve([]),
-    recentRedemptionsAsync(5)
+    recentRedemptionsAsync(5),
+    outOfStockSetAsync()
   ]);
   const wishedSet = new Set(wishlist.map(p=>p.id));
   const catSections = DB.categories.map(c=>{
     const items = DB.products.filter(p=>p.status==='active' && p.category_id===c.id);
     if(!items.length) return '';
-    return categoryBannerSection(c, items, wishedSet);
+    return categoryBannerSection(c, items, wishedSet, outOfStockSet);
   }).join('');
 
   return `
@@ -1315,7 +1329,10 @@ async function pageHome(){
 async function pageStore(params){
   const activeCat = params.get('cat')||'';
   const q = (params.get('q')||'').trim();
-  const wishlist = isLoggedIn()? await myWishlistAsync() : [];
+  const [wishlist, outOfStockSet] = await Promise.all([
+    isLoggedIn()? myWishlistAsync() : Promise.resolve([]),
+    outOfStockSetAsync()
+  ]);
   const wishedSet = new Set(wishlist.map(p=>p.id));
 
   const toolbar = `
@@ -1340,7 +1357,7 @@ async function pageStore(params){
       <div class="section-head"><h2>المتجر <em>الكامل</em></h2><p>تصفّح جميع منتجات Lx S7L الرقمية.</p></div>
       ${toolbar}
       <div class="prod-grid" style="margin-top:30px;">
-        ${list.length? list.map(p=>productCard(p,wishedSet)).join('') : `<p style="color:var(--silver-dim); grid-column:1/-1; text-align:center;">لا توجد منتجات مطابقة.</p>`}
+        ${list.length? list.map(p=>productCard(p,wishedSet,outOfStockSet)).join('') : `<p style="color:var(--silver-dim); grid-column:1/-1; text-align:center;">لا توجد منتجات مطابقة.</p>`}
       </div>
     </section>`;
   }
@@ -1355,7 +1372,7 @@ async function pageStore(params){
         <h3>${c.icon? `<span class="ic">${esc(c.icon)}</span> `:''}${esc(c.name)}</h3>
         <a href="#/store?cat=${c.id}" class="view-btn">عرض الكل</a>
       </div>
-      <div class="prod-grid">${items.map(p=>productCard(p,wishedSet)).join('')}</div>
+      <div class="prod-grid">${items.map(p=>productCard(p,wishedSet,outOfStockSet)).join('')}</div>
     </div>`;
   }).join('');
 
@@ -1363,7 +1380,7 @@ async function pageStore(params){
   const uncatSection = uncategorized.length? `
     <div class="store-section">
       <div class="store-section-head"><h3>منتجات أخرى</h3></div>
-      <div class="prod-grid">${uncategorized.map(p=>productCard(p,wishedSet)).join('')}</div>
+      <div class="prod-grid">${uncategorized.map(p=>productCard(p,wishedSet,outOfStockSet)).join('')}</div>
     </div>` : '';
 
   return `
@@ -1383,13 +1400,14 @@ async function pageProduct(id){
   const paidDurations = p.durations;
   const isManual = p.fulfillment_type === 'manual';
 
-  const [counts, reviews, canReview, wished, inCompareInit, boughtToday] = await Promise.all([
+  const [counts, reviews, canReview, wished, inCompareInit, boughtToday, relatedOosSet] = await Promise.all([
     isManual ? Promise.resolve(paidDurations.map(()=>999)) : Promise.all(paidDurations.map(d=>availableCodesCountAsync(p.id,d.id))),
     getProductReviewsAsync(p.id),
     customerCanReviewAsync(p.id),
     isLoggedIn()? isWishlistedAsync(p.id) : Promise.resolve(false),
     Promise.resolve(DB.compare.includes(p.id)),
-    purchasesTodayCountAsync(p.id)
+    purchasesTodayCountAsync(p.id),
+    outOfStockSetAsync()
   ]);
   const avail = {}; paidDurations.forEach((d,i)=> avail[d.id]=counts[i]);
   const rating = reviews.length? reviews.reduce((s,r)=>s+r.rating,0)/reviews.length : p.rating;
@@ -1461,7 +1479,7 @@ async function pageProduct(id){
         </div>` : ''}
     </div>
 
-    ${related.length? `<div class="section-head" style="margin-top:50px;"><h2>قد <em>يعجبك أيضاً</em></h2></div><div class="prod-grid">${related.map(r=>productCard(r,new Set())).join('')}</div>` : ''}
+    ${related.length? `<div class="section-head" style="margin-top:50px;"><h2>قد <em>يعجبك أيضاً</em></h2></div><div class="prod-grid">${related.map(r=>productCard(r,new Set(),relatedOosSet)).join('')}</div>` : ''}
   </section>`;
 }
 function setMainMedia(btn,type,src){
@@ -1555,7 +1573,7 @@ function pageCheckout(){
   const cust = currentCustomer();
   return `
   <section style="padding-top:150px; min-height:60vh;">
-    <div class="section-head"><h2>إتمام <em>الدفع</em></h2><p>الدفع عبر Tap Sandbox — وضع الاختبار، لا يتم خصم أي مبلغ حقيقي.</p></div>
+    <div class="section-head"><h2>إتمام <em>الدفع</em></h2><p>هذا نموذج دفع تجريبي (Demo) — لا يتم خصم أي مبلغ حقيقي.</p></div>
     <div class="cart-wrap">
       <div class="glass-panel">
         <h3>بيانات العميل</h3>
@@ -1575,7 +1593,7 @@ function pageCheckout(){
         <h3>ملخص الطلب</h3>
         ${DB.cart.map(i=>{const p=getProduct(i.productId),d=getDuration(p,i.durationId); return `<div class="sum-row"><span>${esc(p.name)} — ${esc(d.label)}</span><span class="en">${money(d.price*i.qty)} ${DB.settings.currency}</span></div>`}).join('')}
         <div class="sum-row total"><span>الإجمالي</span><span class="en" id="checkout-total">${money(cartTotal())} ${DB.settings.currency}</span></div>
-        <button class="btn-primary" style="width:100%; margin-top:16px;" onclick="handleConfirmPayment()">الدفع عبر Tap</button>
+        <button class="btn-primary" style="width:100%; margin-top:16px;" onclick="handleConfirmPayment()">تأكيد الدفع</button>
         <p class="hint" style="margin-top:10px;">لا يُسلَّم الكود إلا بعد تأكيد حالة الدفع.</p>
       </div>
     </div>
@@ -1607,168 +1625,13 @@ async function applyCouponPreview(){
   document.getElementById('checkout-total').textContent = money(discounted)+' '+DB.settings.currency;
   msg.textContent = `تم تطبيق الكوبون ${c.code} ✓`; msg.style.color='var(--silver)';
 }
-async function getTapCheckoutAmount(couponCode, usePoints){
-  const baseTotal = Number(cartTotal() || 0);
-  let total = baseTotal;
-
-  if(couponCode){
-    const {data:c} = await sb.from('coupons').select('*').ilike('code', couponCode).eq('active',true).maybeSingle();
-    const now = Date.now();
-    const expired = c && c.expiry && new Date(c.expiry).getTime() < now;
-    const maxedOut = c && c.used >= c.usage_limit;
-    const cartProductIds = DB.cart.map(i=>i.productId);
-    const wrongProduct = c && c.product_id && !cartProductIds.includes(c.product_id);
-
-    if(c && !expired && !maxedOut && !wrongProduct){
-      total = c.type==='percent'
-        ? total-(total*c.value/100)
-        : Math.max(0,total-c.value);
-    }
-  }
-
-  if(usePoints){
-    const cust = currentCustomer();
-    total = Math.max(0, total - pointsToDiscount(cust?.points || 0));
-  }
-
-  return Number(total.toFixed(3));
-}
-
-async function startTapPayment(couponCode, usePoints){
-  if(!sb) return {ok:false, error:'Supabase غير متصل'};
-  if(!DB.cart.length) return {ok:false, error:'السلة فارغة'};
-
-  const amount = await getTapCheckoutAmount(couponCode, usePoints);
-
-  // إذا أصبح الطلب مجانياً بعد الخصم/النقاط، لا نحتاج بوابة دفع.
-  if(amount <= 0) return {ok:true, free:true};
-
-  const checkoutRef = `LXS7L_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
-
-  sessionStorage.setItem('lxs7l_pending_tap', JSON.stringify({
-    reference: checkoutRef,
-    coupon: couponCode || null,
-    usePoints: !!usePoints
-  }));
-
-  const {data, error} = await sb.functions.invoke('tap-create-charge', {
-    body:{
-      amount,
-      reference: checkoutRef
-    }
-  });
-
-  if(error || !data?.ok || !data?.transaction_url){
-    sessionStorage.removeItem('lxs7l_pending_tap');
-    return {ok:false, error:data?.error || error?.message || 'تعذّر إنشاء عملية الدفع'};
-  }
-
-  // حفظ رقم العملية المتوقع قبل مغادرة الموقع إلى Tap.
-  const pending = JSON.parse(sessionStorage.getItem('lxs7l_pending_tap') || '{}');
-  pending.charge_id = data.charge_id || null;
-  pending.amount = amount;
-  sessionStorage.setItem('lxs7l_pending_tap', JSON.stringify(pending));
-
-  window.location.href = data.transaction_url;
-  return {ok:true};
-}
-
 async function handleConfirmPayment(){
-  const btn = event.target;
-  btn.disabled=true;
-  btn.textContent='جارِ التحويل إلى Tap...';
-
-  try{
-    const coupon = document.getElementById('coupon-input')?.value.trim() || null;
-    const usePoints = document.getElementById('use-points')?.checked || false;
-
-    const tap = await startTapPayment(coupon, usePoints);
-
-    if(tap.free){
-      const res = await checkoutCartAsync(coupon, usePoints);
-      if(!res.ok) throw new Error(res.error);
-      go('#/order/'+res.orderIds[0]);
-      return;
-    }
-
-    if(!tap.ok) throw new Error(tap.error);
-    // startTapPayment سينقل المستخدم إلى صفحة Tap.
-  }catch(err){
-    toast(err?.message || 'تعذّر بدء الدفع', false);
-    btn.disabled=false;
-    btn.textContent='الدفع عبر Tap';
-  }
-}
-
-async function handleTapReturn(){
-  const params = new URLSearchParams(location.search);
-  if(params.get('tap_return') !== '1') return false;
-
-  const tapId = params.get('tap_id');
-  const rawPending = sessionStorage.getItem('lxs7l_pending_tap');
-
-  // تنظيف query من شريط العنوان حتى لا تتكرر المعالجة عند التحديث.
-  const cleanUrl = location.pathname + (location.hash || '');
-  try{ history.replaceState({}, document.title, cleanUrl); }catch(e){}
-
-  if(!tapId){
-    if(rawPending) sessionStorage.removeItem('lxs7l_pending_tap');
-    toast('لم يتم استلام رقم عملية الدفع من Tap', false);
-    return true;
-  }
-
-  let pending = null;
-  try{ pending = rawPending ? JSON.parse(rawPending) : null; }catch(e){}
-
-  if(!pending){
-    toast('انتهت جلسة الدفع. أعد المحاولة من صفحة الدفع.', false);
-    return true;
-  }
-
-  document.getElementById('app').innerHTML = `
-    <section style="padding-top:180px; min-height:60vh; text-align:center;">
-      <div class="glass-panel" style="max-width:620px; margin:0 auto;">
-        <div style="font-size:2rem; color:var(--ember); margin-bottom:12px;">◈</div>
-        <h2 style="color:#fff;">جارِ التحقق من الدفع</h2>
-        <p class="hint" style="margin-top:10px;">يتم الآن التحقق من عملية Tap Sandbox، يرجى الانتظار...</p>
-      </div>
-    </section>`;
-
-  const {data, error} = await sb.functions.invoke('tap-verify-charge', {
-    body:{tap_id:tapId}
-  });
-
-  if(error || !data?.ok || data.status !== 'CAPTURED'){
-    sessionStorage.removeItem('lxs7l_pending_tap');
-    toast(
-      data?.status
-        ? `لم يكتمل الدفع. الحالة: ${data.status}`
-        : (data?.error || error?.message || 'تعذّر التحقق من الدفع'),
-      false
-    );
-    go('#/checkout');
-    return true;
-  }
-
-  // الدفع مؤكد من Tap فقط الآن؛ عندها ننشئ الطلب ونسلّم الكود عبر RPC.
-  const res = await checkoutCartAsync(pending.coupon, pending.usePoints);
-
-  if(!res.ok){
-    // لا نحذف pending حتى يمكن معرفة أن الدفع تم ولكن إنشاء الطلب فشل.
-    document.getElementById('app').innerHTML = `
-      <section style="padding-top:180px; min-height:60vh; text-align:center;">
-        <div class="glass-panel" style="max-width:620px; margin:0 auto;">
-          <h2 style="color:#fff;">تم تأكيد الدفع</h2>
-          <p class="hint" style="margin-top:10px;">تم تأكيد الدفع من Tap، لكن تعذّر إنشاء الطلب تلقائياً. تواصل مع الدعم ولا تعاود الدفع.</p>
-          <p class="hint en" style="margin-top:8px;">${esc(res.error || 'Order creation failed')}</p>
-        </div>
-      </section>`;
-    return true;
-  }
-
-  sessionStorage.removeItem('lxs7l_pending_tap');
+  const btn = event.target; btn.disabled=true; btn.textContent='جارِ التنفيذ...';
+  const coupon = document.getElementById('coupon-input')?.value.trim() || null;
+  const usePoints = document.getElementById('use-points')?.checked || false;
+  const res = await checkoutCartAsync(coupon, usePoints);
+  if(!res.ok){ toast(res.error, false); btn.disabled=false; btn.textContent='تأكيد الدفع'; return; }
   go('#/order/'+res.orderIds[0]);
-  return true;
 }
 
 async function pageOrder(id){
@@ -1914,7 +1777,8 @@ async function pageAccount(params){
       <div>${c.expires_at? 'الأيام المتبقية: '+Math.ceil((new Date(c.expires_at).getTime()-Date.now())/86400000) : 'مدى الحياة'}</div></div>`}).join('')}</div>` : `<p class="hint">لا توجد اشتراكات فعالة حالياً.</p>`;
   } else if(tab==='wishlist'){
     const items = await myWishlistAsync();
-    body = items.length? `<div class="prod-grid" style="grid-template-columns:repeat(3,1fr);">${items.map(p=>productCard(p,new Set(items.map(x=>x.id)))).join('')}</div>` : `<p class="hint">قائمة المفضلة فارغة.</p>`;
+    const wishOosSet = items.length? await outOfStockSetAsync() : new Set();
+    body = items.length? `<div class="prod-grid" style="grid-template-columns:repeat(3,1fr);">${items.map(p=>productCard(p,new Set(items.map(x=>x.id)),wishOosSet)).join('')}</div>` : `<p class="hint">قائمة المفضلة فارغة.</p>`;
   } else if(tab==='referral'){
     const refLink = location.href.split('#')[0]+'#/register?ref='+cust.referral_code;
     body = `
@@ -2947,8 +2811,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       await initAuth();
       await bootstrapPublicData();
     }
-    const handledTapReturn = CONFIGURED && sb ? await handleTapReturn() : false;
-    if(!handledTapReturn) await render();
+    await render();
   } catch(err){
     console.error('Bootstrap error:', err);
     const detail = (window.__supabaseInitError || (err && err.message) || '').toString();
