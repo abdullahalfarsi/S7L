@@ -450,7 +450,7 @@
   border:1px solid var(--line); display:flex; align-items:center; justify-content:center; font-size:6rem;
 }
 .pd-info h1{font-family:'Rajdhani',sans-serif; font-weight:700; color:#fff; font-size:2rem;}
-.pd-desc{color:var(--silver-dim); margin-top:14px; line-height:1.9; font-size:.95rem;}
+.pd-desc{color:var(--silver-dim); margin-top:14px; line-height:1.9; font-size:.95rem; white-space:pre-line;}
 .dur-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-top:12px;}
 .dur-opt{
   border:1px solid var(--line); background:var(--panel); padding:14px; text-align:right;
@@ -793,8 +793,8 @@ const LOGO_SRC = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAA4QAAAJpCAYAAAD1
    عدّل السطرين التاليين ببيانات مشروعك في Supabase:
    Project Settings → API → Project URL / anon public key
 ================================================================ */
-const SUPABASE_URL = 'https://gckjxtwwexytpynclvbw.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdja2p4dHd3ZXh5dHB5bmNsdmJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0NTY0OTgsImV4cCI6MjEwNDAzMjQ5OH0.wdwUyi4OczAb3sJx5ygiDFkF-VEs3HVndIpSvoakxhU';
+const SUPABASE_URL = 'https://yribnvnsupbqacnksrgu.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlyaWJudm5zdXBicWFjbmtzcmd1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEyNjY4MzAsImV4cCI6MjEwNjg0MjgzMH0.jKZmOs2WeKWL5KTxSJ-b5Ii9ypFuNMINAu4HlDR8pIk';
 
 const CONFIGURED = !SUPABASE_URL.includes('YOUR-PROJECT') && !SUPABASE_ANON_KEY.includes('YOUR-ANON-PUBLIC-KEY');
 let sb = null;
@@ -2033,7 +2033,10 @@ async function pageAdminProducts(){
   return adminShell('products', `
     <div class="admin-head admin-head-actions">
       <div><h2>المنتجات</h2><p>إدارة منتجات المتجر وباقاتها وأسعارها.</p></div>
-      <button class="btn-primary" onclick="openProductForm()">+ إضافة منتج</button>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn-outline" id="import-s7l-btn" onclick="importS7LProducts()">⇩ استيراد منتجات s7l.rmz.gg</button>
+        <button class="btn-primary" onclick="openProductForm()">+ إضافة منتج</button>
+      </div>
     </div>
     <div class="admin-panel">
       <table class="admin-table"><thead><tr><th></th><th>الاسم</th><th>التصنيف</th><th>الباقات</th><th>التسليم</th><th>الحالة</th><th>مميز</th><th></th></tr></thead>
@@ -2219,6 +2222,65 @@ async function handleDeleteProduct(id){
   await sb.from('activity_logs').insert({actor:currentCustomer().name, action:'حذف منتج', detail:p.name});
   await fetchProducts();
   toast('تم الحذف'); render();
+}
+
+/* ---------- منتجات متجر s7l.rmz.gg (استيراد بضغطة زر من لوحة الأدمن) ---------- */
+const S7L_DESC_BOOST = 'مميزات الخدمة\nآمنة ورسمية: تفعيل مضمون 100% دون أي خطر على السيرفر أو الحساب.\n\nفوائد البوست للسيرفر\nجودة صوت عالية: تحسين نقاء الصوت في الرومات الصوتية.\nهوية بصرية كاملة: إمكانية إضافة أيقونة وبنر متحرك، وخلفيات للصوت.\nخصائص إضافية: رابط دعوة مخصص (Vanity URL) وزيادة حد حجم رفع الملفات.\nتعبير أكبر: فتح خانات إضافية للإيموجيات، الستيكرات، وأصوات الـ Soundboard.';
+const S7L_DESC_NEXUS = 'اسم المنتج : نيكسس مينيو - منيو مدموج بأكس كيوتر خاص فيه Private Menu\n\nالمميزات : يتم تحديثه بانتظام ليبقى غير مكشوف على أنظمة الحماية التالية:\nFiveGuard / WaveShield / ReaperV4 ElectronAC / EagleAC / FiniAC\n\n[ Player ] :\n- العلامات الحيوية: إنعاش، علاج، درع، إجهاد، وحالة ESX الجوع والعطش\n- الحركة: نوكليب غير مكشوف، كاميرا حرة، ومراقبة اللاعبين\n- المظهر: تغيير شخصيتك بالاسم أو بالاختيار، وتزييف الهوية\n\nCombat & Rage :\n- راج بوت: أحدث إصدار ومصمم بعناية عشان يضل مخفي عن الأنظمة\n- الأسلحة: تزييف السلاح، تغيير حجمه، ذخيرة لا نهائية، وإطلاق نار سريع\n- الترول: ثلاث طرق مختلفة لقلب اللاعبين أرضاً، لكمة للجميع، لكمة سريعة، وحبس اللاعبين داخل قفص\n\nVehicles :\n- التعديلات: ترقية كاملة للمركبة، تغيير اللوحة، إصلاح وفتح القفل.\n- الاستدعاء: دعم استدعاء مركبات مخصصة، وتفجير المركبات القريبة منك.\n- معاد تصميمه: هذا القسم تم تحسينه بالكامل لتجربة تحكم أفضل وأداء أعلى\n\nUtility :\n- الصوت: تجاوز صوتي معدل بالكامل، بشتغل على جميع السيرفرات وأنظمة الحماية\n- البيانات: عرض مجموعات اللاعبين، الوظائف، ومعلومات كاملة عن المركبات\n- السيرفر: تشغيل أكواد سحابية، وقارئ إعدادات ريبير V4 المدمج\n\n! منيو Lua عالي الأداء مصمم بشكل أساسي لتقديم أعلى مستويات التجاوزات والثبات أثناء اللعب. ما رح تواجه أي تقطيع في الإطارات وما فيه أي خيارات زايدة أو حشو ما إله داعي. يحتوي على أكثر من 200 ميزة شغالة ويتم تحديثه باستمرار لمواكبة أحدث أنظمة مكافحة الغش.';
+const S7L_DESC_YT = 'حسابات عالية الجودة (Ultra High-Quality) – تمتع بمميزات YouTube Premium لمدة شهر كامل بدون إعلانات وبلا انقطاع.\nحسابات خاصة – الحساب مخصص لك بالكامل، ولا يشاركك فيه أحد.\nوصول كامل للحساب (Full Gmail Access) – يمكنك تغيير كلمة السر والوصول إلى بريد Gmail بعد الشراء.\nملاحظة هامة: يُمنع تعديل بيانات الفوترة أو الدفع الخاصة بالحساب تجنباً لإغلاقه.\n\nتفاصيل المنتج\nالمدة: 1 شهر (1 Month)\nطريقة التسليم: تسليم رقمي فوري\nالمنطقة: عالمي (Global)';
+const S7L_IMG = h => `https://cdn.rmz.gg/products/images/${h}.jpg`;
+const S7L_BOOST_FIELDS = [{key:'field_server_link', label:'رابط سيرفرك (دعوة دائمة)', placeholder:'https://discord.gg/...'}];
+const S7L_CATALOG = [
+  {cat:{name:'Discord', icon:'💬'}, items:[
+    {name:'14 بوست - شهر', price:1.93, img:'8b4794bc3b12c5cec2a0e162557070c8b9698c64', desc:S7L_DESC_BOOST, icon:'🚀', fulfillment:'manual', fields:S7L_BOOST_FIELDS, featured:true},
+    {name:'30 بوست - شهر', price:4.89, img:'a55f6181cf35456ecb2337b968b4eea690e184db', desc:S7L_DESC_BOOST, icon:'🚀', fulfillment:'manual', fields:S7L_BOOST_FIELDS, featured:true},
+    {name:'14 بوست - 3 شهور', price:4.89, img:'80a313fc2bb6619ee0afed7c74acb8077e3ad60f', desc:S7L_DESC_BOOST, icon:'🚀', fulfillment:'manual', fields:S7L_BOOST_FIELDS},
+    {name:'30 بوست - 3شهور', price:10.09, img:'ee0cce56231dbfa859b1a54d7a0c79b631968649', desc:S7L_DESC_BOOST, icon:'🚀', fulfillment:'manual', fields:S7L_BOOST_FIELDS},
+  ]},
+  {cat:{name:'فايف أم', icon:'🎮'}, items:[
+    {name:'Nexus menu - day', price:2.04, img:'704735db380509b53d9c4318e8ad57878bedda8b', desc:S7L_DESC_NEXUS, icon:'🎮', fulfillment:'code', featured:true},
+    {name:'Nexus menu - Week', price:4.28, img:'031c5b45178a7aa38f64d3a460f9cd672759a026', desc:S7L_DESC_NEXUS, icon:'🎮', fulfillment:'code'},
+    {name:'Nexus menu - month', price:8.67, img:'6b768ec6b5a08dfb634be98590cd79a2ebcc3264', desc:S7L_DESC_NEXUS, icon:'🎮', fulfillment:'code'},
+    {name:'Nexus menu - Life time ( vip )', price:21.42, img:'6907f85d07621e401a474b34a395c3fa94b187c2', desc:S7L_DESC_NEXUS, icon:'👑', fulfillment:'code'},
+  ]},
+  {cat:{name:'إشتراكات', icon:'⭐'}, items:[
+    {name:'YouTube Premium 1 month', price:1.02, img:'353d58fe590fdbbb1b1b653ea0040691c74f72a8', desc:S7L_DESC_YT, icon:'▶️', fulfillment:'code'},
+    {name:'1000 متابع انستا', price:1.22, img:'210a98ec1923a4a91321f5646ba7d81d0419d4ca', desc:'1000 متابع انستجرام', icon:'📸', fulfillment:'manual', fields:[{key:'field_insta_user', label:'يوزر حسابك في انستقرام', placeholder:'@username'}]},
+    {name:'CapCut Pro', price:0.91, img:'eb62463997150f9aadbe2cd6a58bcae4b714a591', desc:'CapCut Pro', icon:'🎬', fulfillment:'code'},
+  ]},
+];
+async function importS7LProducts(){
+  if(!isAdmin()){ toast('هذه العملية للأدمن فقط', false); return; }
+  const total = S7L_CATALOG.reduce((n,g)=>n+g.items.length,0);
+  if(!confirm(`سيتم استيراد ${total} منتج من متجر s7l.rmz.gg (مع التصنيفات والأسعار والصور).\nالمنتجات الموجودة بنفس الاسم سيتم تخطيها.\n\nمتابعة؟`)) return;
+  const btn = document.getElementById('import-s7l-btn');
+  if(btn){ btn.disabled = true; btn.textContent = 'جارِ الاستيراد...'; }
+  let added = 0, skipped = 0, failed = 0;
+  for(const group of S7L_CATALOG){
+    // التصنيف: استخدم الموجود بنفس الاسم أو أنشئ واحد جديد
+    let cat = DB.categories.find(c=>c.name.trim()===group.cat.name);
+    if(!cat){
+      const newCat = {id:uid('cat_').toLowerCase(), name:group.cat.name, icon:group.cat.icon, banner_image:null};
+      const {error} = await sb.from('categories').insert(newCat);
+      if(error){ failed += group.items.length; continue; }
+      DB.categories.push(newCat); cat = newCat;
+    }
+    for(const it of group.items){
+      if(DB.products.some(p=>p.name.trim()===it.name)){ skipped++; continue; }
+      const {data,error} = await sb.from('products').insert({
+        name: it.name, description: it.desc, category_id: cat.id, icon: it.icon,
+        status: 'active', featured: !!it.featured, images: [S7L_IMG(it.img)], video: null,
+        fulfillment_type: it.fulfillment, info_fields: it.fulfillment==='manual' ? (it.fields||[]) : [],
+      }).select().single();
+      if(error){ failed++; continue; }
+      const {error:durErr} = await sb.from('product_durations').insert({product_id:data.id, key:uid('t_').toLowerCase(), label:it.name, days:0, price:it.price});
+      if(durErr) failed++; else added++;
+    }
+  }
+  await sb.from('activity_logs').insert({actor:currentCustomer().name, action:'استيراد منتجات', detail:`s7l.rmz.gg — ${added} منتج`});
+  await Promise.all([fetchCategories(), fetchProducts()]);
+  toast(`تم استيراد ${added} منتج${skipped?` — تم تخطي ${skipped} (موجود مسبقاً)`:''}${failed?` — فشل ${failed}`:''}`, !failed);
+  render();
 }
 
 /* ---------- التصنيفات ---------- */
